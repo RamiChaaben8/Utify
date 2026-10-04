@@ -16,7 +16,7 @@
 
 ; Version is injected by the workflow via /DMyAppVersion=x.y.z
 #ifndef MyAppVersion
-  #define MyAppVersion "1.4.0"
+  #define MyAppVersion "1.5.0"
 #endif
 
 [Setup]
@@ -32,6 +32,7 @@ AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={localappdata}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+PrivilegesRequired=lowest
 
 ; Close the running app before copying files
 CloseApplications=yes
@@ -63,8 +64,15 @@ var
   ResultCode: Integer;
 begin
   if CurStep = ssInstall then begin
+    // Check HKCU first (user install), then HKLM (machine install)
     if RegQueryStringValue(HKCU,
         'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
+        'UninstallString', UninstallString) or
+       RegQueryStringValue(HKLM,
+        'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
+        'UninstallString', UninstallString) or
+       RegQueryStringValue(HKLM,
+        'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
         'UninstallString', UninstallString) then
     begin
       Exec(RemoveQuotes(UninstallString),

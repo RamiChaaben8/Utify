@@ -135,11 +135,13 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
   Future<void> downloadLikedSongs(List<Song> liked) =>
       _service.downloadLikedSongs(liked);
 
-  void cancelDownload(String videoId) => _service.cancelDownload(videoId);
+  void cancelDownload(String videoId)  => _service.cancelDownload(videoId);
 
-  void pauseDownload(String videoId)  => _service.pauseDownload(videoId);
+  void pauseDownload(String videoId)   => _service.pauseDownload(videoId);
 
-  void resumeDownload(String videoId) => _service.resumeDownload(videoId);
+  void resumeDownload(String videoId)  => _service.resumeDownload(videoId);
+
+  Future<void> retryDownload(String videoId) => _service.retryDownload(videoId);
 
   Future<void> deleteSong(String videoId) async {
     try {

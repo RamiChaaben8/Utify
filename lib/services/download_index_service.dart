@@ -168,48 +168,99 @@ class DownloadIndexService {
   }
 
   // ── (c) Migrate old 'downloaded_songs' entries ────────────────────────────
+  //
+  // The legacy box was written as an untyped Box — it may contain values of
+  // any Hive-supported type (String paths, bool flags, ints, etc.).  Opening
+  // it as Box<String> causes Hive to cast every read to String?, which throws
+  // "type 'bool' is not a subtype of type 'String?'" for non-String entries.
+  //
+  // We therefore access the raw Box (dynamic values) and filter down to
+  // String entries that point to an existing file.  Each entry is wrapped in
+  // its own try/catch so one bad entry can never abort the whole migration.
 
   Future<void> _migrate() async {
     if (!Hive.isBoxOpen(_kLegacyBox)) return;
-    final legacy = Hive.box<String>(_kLegacyBox);
+    // Access as untyped Box so Hive never attempts a cast on read.
+    final Box<dynamic> legacy = Hive.box<dynamic>(_kLegacyBox);
     if (legacy.isEmpty) return;
 
     final box = _box;
     if (box == null) return;
 
     var migrated = 0;
-    for (final key in legacy.keys.cast<String>().toList()) {
-      final path = legacy.get(key);
-      if (path == null || path.isEmpty) continue;
-      // Skip if already in the new index.
-      if (box.containsKey(key)) continue;
-      // Skip if the file is gone (nothing to migrate).
-      if (!await File(path).exists()) continue;
+    var skipped  = 0;
 
-      // Try to derive videoId from the filename if the path has [videoId].
-      final match = _videoIdInName.firstMatch(path);
-      final videoId = match?.group(1) ?? key;
+    for (final rawKey in legacy.keys.toList()) {
+      final key = rawKey?.toString() ?? '';
+      dynamic rawValue;
+      try {
+        rawValue = legacy.get(rawKey);
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[DownloadIndex] migrate: cannot read key "$key" — $e');
+        }
+        skipped++;
+        continue;
+      }
 
-      // Determine format from extension.
-      final ext = path.split('.').last.toLowerCase();
-      final format = const {'m4a', 'webm', 'mp4', 'mp3'}.contains(ext) ? ext : 'mp4';
+      if (kDebugMode) {
+        debugPrint('[DownloadIndex] migrate key="$key" '
+            'runtimeType=${rawValue.runtimeType} '
+            'value=${rawValue is String ? (rawValue.length > 80 ? "${rawValue.substring(0, 80)}…" : rawValue) : rawValue}');
+      }
 
-      int sizeBytes = 0;
-      try { sizeBytes = await File(path).length(); } catch (_) {}
+      // Per-entry isolation: any cast/file error must not abort the loop.
+      try {
+        // Only migrate String values that look like file paths.
+        if (rawValue is! String) {
+          skipped++;
+          continue;
+        }
+        final path = rawValue;
+        if (path.isEmpty) { skipped++; continue; }
 
-      final entry = DownloadIndexEntry(
-        videoId:     videoId,
-        path:        path,
-        format:      format,
-        sizeBytes:   sizeBytes,
-        downloadedAt: DateTime.now(),
-      );
-      await box.put(videoId, entry);
-      migrated++;
+        // Skip if already in the new index.
+        if (box.containsKey(key)) continue;
+
+        // Skip if the file no longer exists on disk (nothing to migrate).
+        if (!await File(path).exists()) {
+          if (kDebugMode) {
+            debugPrint('[DownloadIndex] migrate: skip "$key" — file not found: $path');
+          }
+          skipped++;
+          continue;
+        }
+
+        // Try to derive videoId from the filename "[videoId]" pattern.
+        final match   = _videoIdInName.firstMatch(path);
+        final videoId = match?.group(1) ?? key;
+
+        // Determine format from extension.
+        final ext    = path.split('.').last.toLowerCase();
+        final format = const {'m4a', 'webm', 'mp4', 'mp3'}.contains(ext) ? ext : 'mp4';
+
+        int sizeBytes = 0;
+        try { sizeBytes = await File(path).length(); } catch (_) {}
+
+        final entry = DownloadIndexEntry(
+          videoId:      videoId,
+          path:         path,
+          format:       format,
+          sizeBytes:    sizeBytes,
+          downloadedAt: DateTime.now(),
+        );
+        await box.put(videoId, entry);
+        migrated++;
+      } catch (e, st) {
+        // One bad entry must never kill the migration loop.
+        debugPrint('[DownloadIndex] migrate: error for key "$key": $e\n$st');
+        skipped++;
+      }
     }
 
-    if (migrated > 0 && kDebugMode) {
-      debugPrint('[DownloadIndex] migrated $migrated legacy download(s)');
+    if (kDebugMode) {
+      debugPrint('[DownloadIndex] migration complete: '
+          '$migrated migrated, $skipped skipped');
     }
   }
 

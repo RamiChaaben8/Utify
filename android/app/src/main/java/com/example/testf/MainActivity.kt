@@ -104,7 +104,6 @@ class MainActivity : AudioServiceActivity() {
                     }
                 }
             }
-        }
 
         // ── MediaStore channel (audio insertion for API 29+) ─────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_CHANNEL)

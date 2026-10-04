@@ -5,6 +5,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show FlutterError, FlutterErrorDetails, PlatformDispatcher, debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -58,13 +59,55 @@ Future<void> _initializeHive() async {
     // Rich download index (new in downloads-rework).
     Hive.openBox<DownloadIndexEntry>(kDownloadIndexBox),
     // Legacy download path map — kept open for one-time migration.
-    Hive.openBox<String>(kLegacyDownloadBox),
+    // Opened as untyped Box<dynamic> so Hive never attempts a String cast
+    // on values that may be booleans, ints, or other mixed types from the
+    // original (untyped) box.
+    Hive.openBox<dynamic>(kLegacyDownloadBox),
   ]);
 }
 
 
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Global error handlers ────────────────────────────────────────────────
+  //
+  // Without these, any unhandled async exception (e.g. inside a fire-and-
+  // forget download) silently kills the Dart VM on Windows, which Flutter
+  // reports as "Lost connection to device".
+  //
+  // FlutterError.onError  — catches errors thrown during widget builds,
+  //   layout, painting, and other framework callbacks.
+  // PlatformDispatcher.onError — catches all uncaught async exceptions in
+  //   the root zone, including unawaited Futures.
+  // runZonedGuarded        — catches uncaught errors in the zone that
+  //   runApp() runs in (belt-and-suspenders with the above).
+
+  FlutterError.onError = (FlutterErrorDetails details) {
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+    if (kDebugMode) debugPrint('[FlutterError] stack:\n${details.stack}');
+    // Do NOT rethrow — we want the app to stay alive.
+  };
+
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    debugPrint('[PlatformDispatcher.onError] $error');
+    if (kDebugMode) debugPrint('[PlatformDispatcher.onError] stack:\n$stack');
+    return true; // returning true marks the error as handled
+  };
+
+  await runZonedGuarded(
+    _appMain,
+    (Object error, StackTrace stack) {
+      debugPrint('[runZonedGuarded] unhandled: $error');
+      if (kDebugMode) debugPrint('[runZonedGuarded] stack:\n$stack');
+      // Do NOT rethrow — let the zone continue running.
+    },
+  );
+}
+
+/// The real main body, called inside the guarded zone.
+Future<void> _appMain() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final firebaseInit = Firebase.initializeApp(

@@ -1065,9 +1065,13 @@ class _DownloadsSection extends ConsumerWidget {
           children: [
             const Icon(Icons.storage, color: Colors.white38, size: 18),
             const SizedBox(width: 8),
-            Text(
-              '${dl.downloaded.length} songs · $totalStr used',
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            Flexible(
+              child: Text(
+                '${dl.downloaded.length} songs · $totalStr used',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white54, fontSize: 13),
+              ),
             ),
           ],
         ),

@@ -110,8 +110,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
 
   void _downloadPlaylist() {
     final download = ref.read(downloadProvider.notifier);
-    for (final song in _songs.where((song) => !song.isLocal)) {
-      download.downloadSong(song);
+    final ds = ref.read(downloadProvider);
+    final currentPlaylist = _currentPlaylist();
+    final songs = currentPlaylist?.songs ?? _songs;
+    for (final song in songs.where((song) => !song.isLocal)) {
+      if (!ds.isDownloaded(song.id)) {
+        download.downloadSong(song);
+      }
     }
   }
 
@@ -508,10 +513,21 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final onlineSongs = songs.where((song) => !song.isLocal).toList();
     final downloadedCount =
         onlineSongs.where((song) => downloadState.isDownloaded(song.id)).length;
+    final totalOnline = onlineSongs.length;
+    final downloadingCount =
+        onlineSongs.where((song) => downloadState.isDownloading(song.id)).length;
     final allDownloaded =
         onlineSongs.isNotEmpty && downloadedCount == onlineSongs.length;
     final isDownloading =
         onlineSongs.any((song) => downloadState.isDownloading(song.id));
+    final anyDownloading = downloadingCount > 0;
+    double avgProgress = 0;
+    if (anyDownloading) {
+      final total = onlineSongs
+          .where((s) => downloadState.isDownloading(s.id))
+          .fold<double>(0, (sum, s) => sum + downloadState.progressFor(s.id));
+      avgProgress = total / downloadingCount;
+    }
 
     return Scaffold(
       body: SafeArea(
@@ -533,6 +549,10 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 onShuffle: () => _playPlaylist(shuffle: true),
                 allDownloaded: allDownloaded,
                 isDownloading: isDownloading,
+                downloadedCount: downloadedCount,
+                downloadingCount: downloadingCount,
+                totalOnline: totalOnline,
+                avgProgress: avgProgress,
                 onDownload: _downloadPlaylist,
                 onMore: currentPlaylist == null ? null : _showPlaylistDetails,
                 onInvite: currentPlaylist == null
@@ -642,6 +662,10 @@ class _PlaylistHeader extends StatelessWidget {
   final VoidCallback onShuffle;
   final bool allDownloaded;
   final bool isDownloading;
+  final int downloadedCount;
+  final int downloadingCount;
+  final int totalOnline;
+  final double avgProgress;
   final VoidCallback onDownload;
   final VoidCallback? onInvite;
   final VoidCallback? onMore;
@@ -655,6 +679,10 @@ class _PlaylistHeader extends StatelessWidget {
     required this.onShuffle,
     required this.allDownloaded,
     required this.isDownloading,
+    required this.downloadedCount,
+    required this.downloadingCount,
+    required this.totalOnline,
+    required this.avgProgress,
     required this.onDownload,
     this.onInvite,
     this.onMore,
@@ -746,24 +774,66 @@ class _PlaylistHeader extends StatelessWidget {
                       tooltip: 'Invite to playlist',
                       onPressed: onInvite,
                     ),
-                  IconButton(
-                    icon: Icon(
-                      isDownloading
-                          ? Icons.downloading
-                          : allDownloaded
-                              ? Icons.download_done
-                              : Icons.download_outlined,
-                      color: allDownloaded
-                          ? const Color(0xFF1DB954)
-                          : const Color(0xFFB3B3B3),
-                      size: 28,
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (isDownloading)
+                          SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: CircularProgressIndicator(
+                              value: avgProgress > 0 ? avgProgress : null,
+                              strokeWidth: 2.2,
+                              color: const Color(0xFF1DB954),
+                              backgroundColor:
+                                  const Color(0xFFB3B3B3).withValues(alpha: 0.2),
+                            ),
+                          ),
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            allDownloaded
+                                ? Icons.download_done
+                                : isDownloading
+                                    ? Icons.downloading
+                                    : Icons.download_outlined,
+                            color: allDownloaded
+                                ? const Color(0xFF1DB954)
+                                : isDownloading
+                                    ? const Color(0xFF1DB954)
+                                    : const Color(0xFFB3B3B3),
+                            size: 26,
+                          ),
+                          tooltip: allDownloaded
+                              ? 'Playlist downloaded ($downloadedCount/$totalOnline)'
+                              : isDownloading
+                                  ? 'Downloading… ${downloadedCount + downloadingCount}/$totalOnline'
+                                  : downloadedCount > 0
+                                      ? 'Download remaining (${totalOnline - downloadedCount} songs)'
+                                      : 'Download playlist ($totalOnline songs)',
+                          onPressed:
+                              isDownloading || allDownloaded ? null : onDownload,
+                        ),
+                      ],
                     ),
-                    tooltip: allDownloaded
-                        ? 'Playlist downloaded'
-                        : 'Download playlist',
-                    onPressed:
-                        isDownloading || allDownloaded ? null : onDownload,
                   ),
+                  if (totalOnline > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Text(
+                        '$downloadedCount/$totalOnline',
+                        style: TextStyle(
+                          color: allDownloaded
+                              ? const Color(0xFF1DB954)
+                              : const Color(0xFFB3B3B3),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   IconButton(
                     icon: const Icon(Icons.more_vert,
                         color: Color(0xFFB3B3B3), size: 28),

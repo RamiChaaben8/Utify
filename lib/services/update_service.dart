@@ -290,18 +290,23 @@ class UpdateService {
     // This avoids races on slower Windows machines and records install errors.
     String psQuote(String value) => "'${value.replaceAll("'", "''")}'";
     final installDir = File(Platform.resolvedExecutable).parent.path;
+    final exeName = File(Platform.resolvedExecutable).uri.pathSegments.last;
+    final targetExe = '$installDir\\$exeName';
     final logPath = '${tempDir.path}\\utify-update.log';
     final scriptPath = '${tempDir.path}\\utify-update.ps1';
     final script = '''
-\$ErrorActionPreference = 'Stop'
-try { Wait-Process -Id ${pid} -ErrorAction SilentlyContinue } catch {}
+\$ErrorActionPreference = 'SilentlyContinue'
+try { Wait-Process -Id ${pid} -Timeout 10 -ErrorAction SilentlyContinue } catch {}
+Get-Process -Name 'utify' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 1
 \$setup = ${psQuote(installerPath)}
 \$installDir = ${psQuote(installDir)}
+\$targetExe = ${psQuote(targetExe)}
 \$logPath = ${psQuote(logPath)}
 \$setupArgs = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /DIR="' + \$installDir + '" /LOG="' + \$logPath + '"'
 \$result = Start-Process -FilePath \$setup -ArgumentList \$setupArgs -Wait -PassThru
 if (\$result.ExitCode -eq 0) {
-  Start-Process -FilePath ${psQuote(Platform.resolvedExecutable)}
+  Start-Process -FilePath \$targetExe
 } else {
   Start-Process -FilePath \$setup -ArgumentList ('/DIR="' + \$installDir + '" /LOG="' + \$logPath + '"')
 }

@@ -533,61 +533,84 @@ class _DownloadButton extends ConsumerWidget {
       avgProgress = total / downloadingCount;
     }
 
+    final tooltipMsg = allDone
+        ? 'Playlist downloaded ($downloadedCount/$totalOnline)'
+        : anyDownloading
+            ? 'Downloading… ${downloadedCount + downloadingCount}/$totalOnline'
+            : downloadedCount > 0
+                ? 'Download remaining (${totalOnline - downloadedCount} songs)'
+                : 'Download playlist ($totalOnline songs)';
+
     return Tooltip(
-      message: allDone
-          ? 'Playlist downloaded'
-          : anyDownloading
-              ? 'Downloading… ${downloadedCount + downloadingCount}/$totalOnline'
-              : 'Download playlist',
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (anyDownloading)
-              SizedBox(
-                width: 36,
-                height: 36,
-                child: CircularProgressIndicator(
-                  value: avgProgress,
-                  strokeWidth: 2.5,
-                  color: context.appTheme.isVerdantNightDesktop
-                      ? context.appTheme.subtext
-                      : context.appTheme.button,
-                  backgroundColor:
-                      context.appTheme.subtext.withValues(alpha: 0.2),
+      message: tooltipMsg,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (anyDownloading)
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: CircularProgressIndicator(
+                      value: avgProgress > 0 ? avgProgress : null,
+                      strokeWidth: 2.5,
+                      color: context.appTheme.isVerdantNightDesktop
+                          ? context.appTheme.subtext
+                          : context.appTheme.button,
+                      backgroundColor:
+                          context.appTheme.subtext.withValues(alpha: 0.2),
+                    ),
+                  ),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: allDone || anyDownloading
+                      ? null
+                      : () {
+                          for (final song in onlineSongs) {
+                            if (!ds.isDownloaded(song.id)) {
+                              ref
+                                  .read(downloadProvider.notifier)
+                                  .downloadSong(song);
+                            }
+                          }
+                        },
+                  icon: Icon(
+                    allDone
+                        ? Icons.download_done
+                        : anyDownloading
+                            ? Icons.downloading
+                            : Icons.download_outlined,
+                    color: allDone
+                        ? context.appTheme.iconColor(context.appTheme.button)
+                        : anyDownloading
+                            ? context.appTheme.subtext
+                            : context.appTheme.subtext,
+                    size: 22,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (totalOnline > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 2, right: 6),
+              child: Text(
+                '$downloadedCount/$totalOnline',
+                style: TextStyle(
+                  color: allDone
+                      ? context.appTheme.iconColor(context.appTheme.button)
+                      : context.appTheme.subtext,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            IconButton(
-              padding: EdgeInsets.zero,
-              onPressed: allDone || anyDownloading
-                  ? null
-                  : () {
-                      for (final song in onlineSongs) {
-                        if (!ds.isDownloaded(song.id)) {
-                          ref
-                              .read(downloadProvider.notifier)
-                              .downloadSong(song);
-                        }
-                      }
-                    },
-              icon: Icon(
-                allDone
-                    ? Icons.download_done
-                    : anyDownloading
-                        ? Icons.downloading
-                        : Icons.download_outlined,
-                color: allDone
-                    ? context.appTheme.iconColor(context.appTheme.button)
-                    : anyDownloading
-                        ? context.appTheme.subtext
-                        : context.appTheme.subtext,
-                size: 22,
-              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
