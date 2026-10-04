@@ -17,6 +17,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../services/artwork_cache_manager.dart';
+
 import '../providers/player_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../desktop/theme/desktop_theme.dart';
@@ -84,6 +86,9 @@ class MiniPlayer extends ConsumerWidget {
                       width: 48,
                       height: 48,
                       fit: BoxFit.cover,
+                      memCacheWidth: 192,
+                      memCacheHeight: 192,
+                      cacheManager: ArtworkCacheManager.instance,
                       placeholder: (_, __) => Container(
                         width: 48,
                         height: 48,

@@ -10,14 +10,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
+import 'dart:async';
 import 'dart:io';
 
 import 'firebase_options.dart';
 
+import 'models/download_index.dart';
 import 'models/song.dart';
 import 'models/playlist.dart';
+import 'services/download_index_service.dart';
+
 import 'app.dart';
+import 'services/audio_cache_service.dart';
 import 'services/youtube_service.dart';
+import 'services/ytmusic_feed_cache.dart';
 import 'services/library_service.dart';
 import 'services/audio_player_service.dart';
 import 'services/audio_handler.dart';
@@ -32,6 +38,7 @@ Future<void> _initializeHive() async {
   await Hive.initFlutter();
   Hive.registerAdapter(SongAdapter());
   Hive.registerAdapter(PlaylistAdapter());
+  Hive.registerAdapter(DownloadIndexEntryAdapter());
 
   await Future.wait([
     Hive.openBox<Song>('liked_songs'),
@@ -42,8 +49,20 @@ Future<void> _initializeHive() async {
     Hive.openBox<Playlist>('guest_playlists'),
     Hive.openBox('settings'),
     Hive.openBox('stream_url_cache'),
+    // LRU index for the private audio file cache (Android).
+    Hive.openBox(kAudioCacheBox),
+    // Disk tier for YT Music feeds.
+    Hive.openBox(kYtMusicFeedBox),
+    // Lyrics cache (LRCLIB) keyed by videoId.
+    Hive.openBox('lrclib_lyrics'),
+    // Rich download index (new in downloads-rework).
+    Hive.openBox<DownloadIndexEntry>(kDownloadIndexBox),
+    // Legacy download path map — kept open for one-time migration.
+    Hive.openBox<String>(kLegacyDownloadBox),
   ]);
 }
+
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -149,6 +168,31 @@ void _warmCache() {
   try {
     final lib = LibraryService();
     final yt = YoutubeService();
+
+    // Signed stream URLs are dead weight once they fall inside the 10-minute
+    // safety margin. Drop them before anything tries to read the box.
+    unawaited(yt.pruneExpired());
+
+    // Drop feed rows that can no longer be decoded, so one corrupt entry does
+    // not force a full refetch of every shelf.
+    unawaited(YtMusicFeedCache.instance.pruneBroken());
+
+    // Download index startup maintenance: clean .part files, verify entries,
+    // migrate legacy downloads, scan for unindexed files.
+    unawaited(DownloadIndexService.instance.runStartupMaintenance());
+
+    // Drop LRU rows whose files the OS already reclaimed, and trim back under
+
+    // the user's limit before the first track tries to fill it again.
+    // cacheDirectory() is warmed here too so the very first tap does not pay
+    // for the path_provider round-trip.
+    if (AudioCacheService.isSupported) {
+      unawaited(() async {
+        await AudioCacheService.instance.cacheDirectory();
+        await AudioCacheService.instance.reconcile();
+        await AudioCacheService.instance.evictIfNeeded();
+      }());
+    }
 
     final recent = lib.getRecentlyPlayed().take(6).toList();
     final liked = lib.getLikedSongs().take(4).toList();

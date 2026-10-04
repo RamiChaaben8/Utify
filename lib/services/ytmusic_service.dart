@@ -2,26 +2,62 @@
 // Communicates with the YouTube Music Innertube API (no API key required).
 // All public methods are async, never throw to the caller, and cache results
 // in memory for 30 minutes.
+//
+// Caching
+// ─────────────────────────────────────────────────────────────
+//   L1  in-memory Map, 30-minute freshness  (instant, lost on restart)
+//   L2  Hive-backed feed cache, unbounded     (Android only, survives restarts)
+//
+//   Reads are stale-while-revalidate: a fresh L1 entry returns immediately
+//   and never touches the network; a stale L1 or L2 entry returns straight
+//   away and kicks off a background refresh whose result is published on
+//   [revisions] so a provider that already rendered the stale value can patch
+//   itself. Only a complete miss blocks on the network.
+//
+//   Desktop keeps the previous behaviour: L1 only, blocking refresh.
+// ------------------------------------------------------------
 
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 
 import '../models/ytmusic_models.dart';
+import '../utils/thumbnail_url.dart';
+import 'ytmusic_feed_cache.dart';
 
 // ---------------------------------------------------------------------------
 // Internal cache entry
 // ---------------------------------------------------------------------------
 
 class _CacheEntry {
-  final dynamic data;
+  final Object data;
+
+  /// Encoded form of [data], kept so a background refresh can be compared
+  /// against what was served without re-encoding (and without relying on
+  /// `==`, which is identity for lists).
+  final String fingerprint;
+
   final DateTime expiresAt;
 
-  _CacheEntry(this.data)
-      : expiresAt = DateTime.now().add(const Duration(minutes: 30));
+  _CacheEntry(this.data, this.fingerprint, this.expiresAt);
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 }
+
+/// What the last read for a key handed to the caller, plus its fingerprint.
+class _Served {
+  final Object value;
+  final String fingerprint;
+
+  const _Served(this.value, this.fingerprint);
+}
+
+/// True when a freshly fetched payload should not be cached because the
+/// request effectively failed (an empty list, an empty body).
+bool _isEmptyPayload(Object value) => value is Iterable && value.isEmpty;
+
 
 // ---------------------------------------------------------------------------
 // YtMusicService
@@ -131,21 +167,228 @@ class YtMusicService {
     }
   }
 
-  // ── In-memory cache ────────────────────────────────────────────────────────
+  // ── Feed cache keys ───────────────────────────────────────────────────────
+  // Public so providers can subscribe to background updates for the same entry
+  // a read used. Every public getter below builds its key through these.
+
+  static const String kHomeFeedKey = 'home_feed';
+  static const String kExploreKey = 'explore';
+  static const String kMoodsGenresKey = 'moods_genres';
+  static const String kAlbumsForYouKey = 'albums_for_you';
+  static String homeMoodKey(String params) => 'home_mood_$params';
+  static String searchKey(String query) =>
+      'search_${query.toLowerCase().trim()}';
+  static String artistSongsKey(String browseId) => 'artist_songs_$browseId';
+  static String relatedArtistsKey(String browseId) =>
+      'related_artists_$browseId';
+  static String upNextKey(String videoId) => 'upnext_$videoId';
+  static String albumTracksKey(String browseId) => 'album_tracks_$browseId';
+
+  // ── L1: in-memory cache ───────────────────────────────────────────────────
 
   final Map<String, _CacheEntry> _cache = {};
 
-  T? _getCached<T>(String key) {
-    final entry = _cache[key];
-    if (entry == null || entry.isExpired) {
-      _cache.remove(key);
-      return null;
-    }
-    return entry.data as T?;
+  /// What each key last handed out, used to decide whether a background
+  /// refresh actually changed anything.
+  final Map<String, _Served> _served = {};
+
+  /// Keys with a refresh already in flight, so N callers do not cause N
+  /// network requests.
+  final Set<String> _revalidating = {};
+
+  /// Per-key update channels for background revalidations.
+  final Map<String, StreamController<dynamic>> _revisions = {};
+
+  /// How long a fetched feed stays fresh in L1.
+  static const Duration _kFeedTtl = Duration(minutes: 30);
+
+  void _putCache(String key, Object data, String fingerprint) {
+    _cache[key] = _CacheEntry(
+      data,
+      fingerprint,
+      DateTime.now().add(_kFeedTtl),
+    );
   }
 
-  void _putCache(String key, dynamic data) {
-    _cache[key] = _CacheEntry(data);
+  // ── Revisions ─────────────────────────────────────────────────────────────
+
+  /// Emits whenever a background refresh for [key] completes and the payload
+  /// differs from what the previous read returned.
+  ///
+  /// Subscribe *before* awaiting the corresponding getter. A revision that
+  /// lands during the initial await would otherwise be lost, leaving the
+  /// screen stuck on the stale value until the next load:
+  ///
+  /// ```dart
+  /// var gotRevision = false;
+  /// final sub = service.revisions<List<YtSong>>(key).listen((v) {
+  ///   gotRevision = true;
+  ///   apply(v);
+  /// });
+  /// final value = await service.getArtistTopSongs(id);
+  /// if (!gotRevision) apply(value);
+  /// ```
+  Stream<T> revisions<T extends Object>(String key) {
+    final controller = _revisions.putIfAbsent(
+      key,
+      () => StreamController<dynamic>.broadcast(),
+    );
+    return controller.stream.cast<T>();
+  }
+
+  void _publishRevision(String key, Object value) {
+    try {
+      final controller = _revisions[key];
+      if (controller == null || controller.isClosed) return;
+      // Nobody is watching — the reader already has this value in hand.
+      if (!controller.hasListener) return;
+      controller.add(value);
+    } catch (e) {
+      debugPrint('[YtMusicService] revision publish failed for $key: $e');
+    }
+  }
+
+  // ── Stale-while-revalidate ────────────────────────────────────────────────
+
+  /// Reads [key], preferring the freshest tier available, and revalidates in
+  /// the background whenever it served something that was not L1-fresh.
+  ///
+  /// [encode] / [decode] are supplied by the caller because every feed has a
+  /// different value type. An encoder may return either a map (for structured
+  /// feeds) or a bare list; both are stored under one uniform envelope.
+  ///
+  /// [cacheEmpty] preserves the per-feed policy of the original inline
+  /// caching — a few feeds must not be allowed to poison the cache with an
+  /// empty result when the network call fails.
+  Future<T> _swr<T extends Object>(
+    String key,
+    Future<T> Function() fetch, {
+    required Object? Function(T value) encode,
+    required T Function(dynamic json) decode,
+    bool cacheEmpty = true,
+  }) async {
+    // ── L1, still fresh: no network at all ──────────────────────────────────
+    final entry = _cache[key];
+    if (entry != null && !entry.isExpired) {
+      final value = entry.data as T;
+      _served[key] = _Served(value, entry.fingerprint);
+      return value;
+    }
+
+    // ── L1, expired: serve it now, refresh behind the user's back ───────────
+    if (entry != null) {
+      final stale = entry.data as T;
+      _served[key] = _Served(stale, entry.fingerprint);
+      _startRevalidate<T>(key, fetch, encode, cacheEmpty);
+      return stale;
+    }
+
+    // ── L2, disk (Android only) ─────────────────────────────────────────────
+    final disk = await _readFeedCache<T>(key, decode);
+    if (disk != null) {
+      final value = disk.$1;
+      final fingerprint = disk.$2;
+      _putCache(key, value, fingerprint);
+      _served[key] = _Served(value, fingerprint);
+      _startRevalidate<T>(key, fetch, encode, cacheEmpty);
+      debugPrint('[YtMusicService] $key served from disk, refreshing');
+      return value;
+    }
+
+    // ── Cold miss: the only case that waits on the network ─────────────────
+    return _fetchAndStore<T>(key, fetch, encode, cacheEmpty);
+  }
+
+  Future<T> _fetchAndStore<T extends Object>(
+    String key,
+    Future<T> Function() fetch,
+    Object? Function(T value) encode,
+    bool cacheEmpty,
+  ) async {
+    final value = await fetch();
+    final fingerprint = _store<T>(key, value, encode, cacheEmpty);
+    _served[key] = _Served(value, fingerprint);
+    return value;
+  }
+
+  void _startRevalidate<T extends Object>(
+    String key,
+    Future<T> Function() fetch,
+    Object? Function(T value) encode,
+    bool cacheEmpty,
+  ) {
+    if (_revalidating.contains(key)) return;
+    _revalidating.add(key);
+    unawaited(() async {
+      try {
+        final fresh = await fetch();
+        final fingerprint = _store<T>(key, fresh, encode, cacheEmpty);
+        // The value stored even if it is empty; only publish when it differs
+        // from what the reader is currently showing.
+        final previous = _served[key];
+        if (previous == null || previous.fingerprint != fingerprint) {
+          _served[key] = _Served(fresh, fingerprint);
+          _publishRevision(key, fresh);
+          debugPrint('[YtMusicService] $key revalidated with new content');
+        } else {
+          debugPrint('[YtMusicService] $key revalidated, unchanged');
+        }
+      } catch (e) {
+        debugPrint('[YtMusicService] revalidation failed for $key: $e');
+      } finally {
+        _revalidating.remove(key);
+      }
+    }());
+  }
+
+  /// Caches [value] in both tiers and returns the fingerprint used for change
+  /// detection. Encoding happens exactly once per fetch.
+  ///
+  /// Returns an empty fingerprint when the value was deliberately not cached —
+  /// callers treat that as "nothing to publish".
+  String _store<T extends Object>(
+    String key,
+    T value,
+    Object? Function(T value) encode,
+    bool cacheEmpty,
+  ) {
+    if (!cacheEmpty && _isEmptyPayload(value)) return '';
+    try {
+      final payload = _asPayload(encode(value));
+      final fingerprint = jsonEncode(payload);
+      _putCache(key, value, fingerprint);
+      unawaited(YtMusicFeedCache.instance.write(key, payload));
+      return fingerprint;
+    } catch (e) {
+      // A serialisation bug must not lose the value; keep it in memory only.
+      debugPrint('[YtMusicService] encode failed for $key: $e');
+      _putCache(key, value, '');
+      return '';
+    }
+  }
+
+  /// Normalises whatever an encoder produced into a single JSON object, so
+  /// the stored shape is uniform: list feeds land under `items`.
+  static Map<String, dynamic> _asPayload(Object? encoded) {
+    if (encoded is Map) return Map<String, dynamic>.from(encoded);
+    return {'items': encoded};
+  }
+
+  /// Loads a feed from disk. Returns `(value, fingerprint)` or null.
+  Future<(T, String)?> _readFeedCache<T extends Object>(
+    String key,
+    T Function(dynamic json) decode,
+  ) async {
+    if (!YtMusicFeedCache.instance.isEnabled) return null;
+    try {
+      final payload = await YtMusicFeedCache.instance.read(key);
+      if (payload == null) return null;
+      final value = decode(payload);
+      return (value, jsonEncode(payload));
+    } catch (e) {
+      debugPrint('[YtMusicService] disk decode failed for $key: $e');
+      return null;
+    }
   }
 
   // ── Low-level POST ─────────────────────────────────────────────────────────
@@ -223,8 +466,8 @@ class YtMusicService {
   // ── Thumbnail helper ───────────────────────────────────────────────────────
 
   /// Picks the best square thumbnail URL from a list of thumbnail objects.
-  /// Prefers 226×226; falls back to the largest one found.
-  /// Forces square crops on Google's image CDN URLs.
+  /// Prefers 544×544 or 226×226; falls back to the largest one found.
+  /// Normalizes protocol-relative URLs and optimizes Google CDN sizes.
   String _thumb(dynamic thumbnails) {
     if (thumbnails is! List || thumbnails.isEmpty) return '';
 
@@ -237,8 +480,10 @@ class YtMusicService {
       if (url is! String || url.isEmpty) continue;
       final w = t['width'] is int ? t['width'] as int : 0;
       final h = t['height'] is int ? t['height'] as int : 0;
-      // Exact match for the preferred square size
-      if (w == 226 && h == 226) return _squarify(url);
+      // Exact match for the preferred square size (544 or 226)
+      if ((w == 544 && h == 544) || (w == 226 && h == 226)) {
+        return ThumbnailUrl.normalize(url);
+      }
       // Otherwise keep the largest thumbnail we've seen
       final area = w * h;
       if (area > bestSize) {
@@ -246,27 +491,15 @@ class YtMusicService {
         best = url;
       }
     }
-    return best != null ? _squarify(best) : '';
-  }
-
-  /// Forces a square crop on Google's CDN image URLs.
-  /// lh3.googleusercontent.com URLs accept `=w512-h512-c` to crop to a
-  /// 512×512 square. Other URLs are returned unchanged.
-  String _squarify(String url) {
-    if (url.contains('lh3.googleusercontent.com')) {
-      // Remove any existing size/crop parameters (everything after '=')
-      final base = url.contains('=') ? url.substring(0, url.indexOf('=')) : url;
-      return '$base=w512-h512-c';
-    }
-    // yt3.ggpht.com (artist photos) and i.ytimg.com thumbnails do not need squaring
-    // because we always render them with BoxFit.cover in a square container.
-    return url;
+    return best != null ? ThumbnailUrl.normalize(best) : '';
   }
 
   /// Extracts the thumbnail list from a standard `thumbnail` wrapper.
   String _thumbFromWrapper(dynamic wrapper) {
     if (wrapper is Map) {
-      final inner = wrapper['thumbnails'] ?? wrapper['thumbnail'];
+      final inner = wrapper['musicThumbnailRenderer'] ??
+          wrapper['thumbnails'] ??
+          wrapper['thumbnail'];
       if (inner is Map) return _thumbFromWrapper(inner);
       if (inner is List) return _thumb(inner);
     }
@@ -395,7 +628,8 @@ class YtMusicService {
       }
 
       final thumbWrapper = r['thumbnail'];
-      final coverUrl = _thumbFromWrapper(thumbWrapper);
+      var coverUrl = _thumbFromWrapper(thumbWrapper);
+      coverUrl = ThumbnailUrl.normalize(coverUrl, videoId: videoId);
       final duration =
           _parseDuration(durationText.isNotEmpty ? durationText : null);
 
@@ -442,7 +676,8 @@ class YtMusicService {
       }
 
       final thumbWrapper = r['thumbnailRenderer'] ?? r['thumbnail'];
-      final coverUrl = _thumbFromWrapper(thumbWrapper);
+      var coverUrl = _thumbFromWrapper(thumbWrapper);
+      coverUrl = ThumbnailUrl.normalize(coverUrl, videoId: videoId);
 
       return YtSong(
         videoId: videoId,
@@ -941,12 +1176,36 @@ class YtMusicService {
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /// Fetches the YouTube Music home feed.
-  Future<(List<YtSection>, List<YtMoodChip>)> getHomeFeed() async {
-    const cacheKey = 'home_feed';
-    final cached =
-        _getCached<(List<YtSection>, List<YtMoodChip>)>(cacheKey);
-    if (cached != null) return cached;
+  ///
+  /// Stale-while-revalidate; listen on `revisions(kHomeFeedKey)` for the
+  /// background refresh.
+  Future<(List<YtSection>, List<YtMoodChip>)> getHomeFeed() => _swr(
+        kHomeFeedKey,
+        _fetchHomeFeed,
+        encode: _encodeHomeFeed,
+        decode: _decodeHomeFeed,
+      );
 
+  static Map<String, dynamic> _encodeHomeFeed(
+    (List<YtSection>, List<YtMoodChip>) value,
+  ) =>
+      {
+        'sections': YtSection.encodeList(value.$1),
+        'chips': YtMoodChip.encodeList(value.$2),
+      };
+
+  static (List<YtSection>, List<YtMoodChip>) _decodeHomeFeed(
+    dynamic json,
+  ) {
+    final map = json is Map ? json : const {};
+    return (
+      ytSectionListFrom(map['sections']),
+      ytMoodChipListFrom(map['chips']),
+    );
+  }
+
+  /// Network half of [getHomeFeed].
+  Future<(List<YtSection>, List<YtMoodChip>)> _fetchHomeFeed() async {
     try {
       debugPrint('[YtMusicService] getHomeFeed: fetching FEmusic_home');
       final body = await _post('browse', {'browseId': 'FEmusic_home'});
@@ -965,7 +1224,6 @@ class YtMusicService {
       debugPrint(
           '[YtMusicService] getHomeFeed: ${result.$1.length} sections, '
           '${result.$2.length} chips');
-      _putCache(cacheKey, result);
       return result;
     } catch (e) {
       debugPrint('[YtMusicService] getHomeFeed error: $e');
@@ -974,11 +1232,15 @@ class YtMusicService {
   }
 
   /// Fetches the home feed filtered by a mood / genre params string.
-  Future<List<YtSection>> getHomeFeedForMood(String params) async {
-    final cacheKey = 'home_mood_$params';
-    final cached = _getCached<List<YtSection>>(cacheKey);
-    if (cached != null) return cached;
+  Future<List<YtSection>> getHomeFeedForMood(String params) => _swr(
+        homeMoodKey(params),
+        () => _fetchHomeFeedForMood(params),
+        encode: YtSection.encodeList,
+        decode: ytSectionListFrom,
+      );
 
+  /// Network half of [getHomeFeedForMood].
+  Future<List<YtSection>> _fetchHomeFeedForMood(String params) async {
     try {
       debugPrint(
           '[YtMusicService] getHomeFeedForMood: params=${params.substring(0, params.length.clamp(0, 30))}...');
@@ -992,7 +1254,6 @@ class YtMusicService {
       final (sections, _) = _parseSectionList(contents);
       debugPrint(
           '[YtMusicService] getHomeFeedForMood: ${sections.length} sections');
-      _putCache(cacheKey, sections);
       return sections;
     } catch (e) {
       debugPrint('[YtMusicService] getHomeFeedForMood error: $e');
@@ -1001,11 +1262,15 @@ class YtMusicService {
   }
 
   /// Fetches the Explore page (new releases, charts).
-  Future<List<YtSection>> getExplore() async {
-    const cacheKey = 'explore';
-    final cached = _getCached<List<YtSection>>(cacheKey);
-    if (cached != null) return cached;
+  Future<List<YtSection>> getExplore() => _swr(
+        kExploreKey,
+        _fetchExplore,
+        encode: YtSection.encodeList,
+        decode: ytSectionListFrom,
+      );
 
+  /// Network half of [getExplore].
+  Future<List<YtSection>> _fetchExplore() async {
     try {
       debugPrint('[YtMusicService] getExplore: fetching FEmusic_explore');
       final body = await _post('browse', {'browseId': 'FEmusic_explore'});
@@ -1016,7 +1281,6 @@ class YtMusicService {
 
       final (sections, _) = _parseSectionList(contents);
       debugPrint('[YtMusicService] getExplore: ${sections.length} sections');
-      _putCache(cacheKey, sections);
       return sections;
     } catch (e) {
       debugPrint('[YtMusicService] getExplore error: $e');
@@ -1025,11 +1289,15 @@ class YtMusicService {
   }
 
   /// Fetches mood and genre navigation chips from FEmusic_moods_and_genres.
-  Future<List<YtMoodChip>> getMoodsAndGenres() async {
-    const cacheKey = 'moods_genres';
-    final cached = _getCached<List<YtMoodChip>>(cacheKey);
-    if (cached != null) return cached;
+  Future<List<YtMoodChip>> getMoodsAndGenres() => _swr(
+        kMoodsGenresKey,
+        _fetchMoodsAndGenres,
+        encode: YtMoodChip.encodeList,
+        decode: ytMoodChipListFrom,
+      );
 
+  /// Network half of [getMoodsAndGenres].
+  Future<List<YtMoodChip>> _fetchMoodsAndGenres() async {
     try {
       debugPrint(
           '[YtMusicService] getMoodsAndGenres: fetching FEmusic_moods_and_genres');
@@ -1042,7 +1310,6 @@ class YtMusicService {
 
       final (_, chips) = _parseSectionList(contents);
       debugPrint('[YtMusicService] getMoodsAndGenres: ${chips.length} chips');
-      _putCache(cacheKey, chips);
       return chips;
     } catch (e) {
       debugPrint('[YtMusicService] getMoodsAndGenres error: $e');
@@ -1051,13 +1318,21 @@ class YtMusicService {
   }
 
   /// Searches YouTube Music for songs matching [query].
-  Future<List<YtSong>> searchSongs(String query) async {
-    if (query.trim().isEmpty) return [];
+  ///
+  /// Results are keyed by the normalised query, so revisiting a search term is
+  /// instant and a re-search updates the list in place.
+  Future<List<YtSong>> searchSongs(String query) {
+    if (query.trim().isEmpty) return Future.value(const <YtSong>[]);
+    return _swr(
+      searchKey(query),
+      () => _fetchSearchSongs(query),
+      encode: YtSong.encodeList,
+      decode: ytSongListFrom,
+    );
+  }
 
-    final cacheKey = 'search_${query.toLowerCase().trim()}';
-    final cached = _getCached<List<YtSong>>(cacheKey);
-    if (cached != null) return cached;
-
+  /// Network half of [searchSongs].
+  Future<List<YtSong>> _fetchSearchSongs(String query) async {
     try {
       debugPrint('[YtMusicService] searchSongs: "$query"');
       final body = await _post('search', {
@@ -1097,7 +1372,6 @@ class YtMusicService {
       }
 
       debugPrint('[YtMusicService] searchSongs "$query": ${songs.length} songs');
-      _putCache(cacheKey, songs);
       return songs;
     } catch (e) {
       debugPrint('[YtMusicService] searchSongs error: $e');
@@ -1106,13 +1380,18 @@ class YtMusicService {
   }
 
   /// Returns the top songs for an artist identified by [artistBrowseId].
-  Future<List<YtSong>> getArtistTopSongs(String artistBrowseId) async {
-    if (artistBrowseId.isEmpty) return [];
+  Future<List<YtSong>> getArtistTopSongs(String artistBrowseId) {
+    if (artistBrowseId.isEmpty) return Future.value(const <YtSong>[]);
+    return _swr(
+      artistSongsKey(artistBrowseId),
+      () => _fetchArtistTopSongs(artistBrowseId),
+      encode: YtSong.encodeList,
+      decode: ytSongListFrom,
+    );
+  }
 
-    final cacheKey = 'artist_songs_$artistBrowseId';
-    final cached = _getCached<List<YtSong>>(cacheKey);
-    if (cached != null) return cached;
-
+  /// Network half of [getArtistTopSongs].
+  Future<List<YtSong>> _fetchArtistTopSongs(String artistBrowseId) async {
     try {
       debugPrint(
           '[YtMusicService] getArtistTopSongs: browseId=$artistBrowseId');
@@ -1156,7 +1435,6 @@ class YtMusicService {
       debugPrint(
           '[YtMusicService] getArtistTopSongs $artistBrowseId: '
           '${songs.length} songs');
-      _putCache(cacheKey, songs);
       return songs;
     } catch (e) {
       debugPrint('[YtMusicService] getArtistTopSongs error: $e');
@@ -1165,13 +1443,22 @@ class YtMusicService {
   }
 
   /// Returns artists related to [artistBrowseId].
-  Future<List<YtArtist>> getRelatedArtists(String artistBrowseId) async {
-    if (artistBrowseId.isEmpty) return [];
+  ///
+  /// An empty result is cached on purpose (the network said "no related
+  /// artists", not "the call failed"), so this feed stops retrying on every
+  /// visit.
+  Future<List<YtArtist>> getRelatedArtists(String artistBrowseId) {
+    if (artistBrowseId.isEmpty) return Future.value(const <YtArtist>[]);
+    return _swr(
+      relatedArtistsKey(artistBrowseId),
+      () => _fetchRelatedArtists(artistBrowseId),
+      encode: YtArtist.encodeList,
+      decode: ytArtistListFrom,
+    );
+  }
 
-    final cacheKey = 'related_artists_$artistBrowseId';
-    final cached = _getCached<List<YtArtist>>(cacheKey);
-    if (cached != null) return cached;
-
+  /// Network half of [getRelatedArtists].
+  Future<List<YtArtist>> _fetchRelatedArtists(String artistBrowseId) async {
     try {
       debugPrint(
           '[YtMusicService] getRelatedArtists: browseId=$artistBrowseId');
@@ -1214,12 +1501,10 @@ class YtMusicService {
         if (artists.isNotEmpty) {
           debugPrint(
               '[YtMusicService] getRelatedArtists: ${artists.length} artists');
-          _putCache(cacheKey, artists);
           return artists;
         }
       }
 
-      _putCache(cacheKey, <YtArtist>[]);
       return [];
     } catch (e) {
       debugPrint('[YtMusicService] getRelatedArtists error: $e');
@@ -1228,12 +1513,18 @@ class YtMusicService {
   }
 
   /// Returns the "Up Next" queue for a given [videoId].
-  Future<List<YtSong>> getUpNext(String videoId) async {
-    if (videoId.isEmpty) return [];
+  Future<List<YtSong>> getUpNext(String videoId) {
+    if (videoId.isEmpty) return Future.value(const <YtSong>[]);
+    return _swr(
+      upNextKey(videoId),
+      () => _fetchUpNext(videoId),
+      encode: YtSong.encodeList,
+      decode: ytSongListFrom,
+    );
+  }
 
-    final cacheKey = 'upnext_$videoId';
-    final cached = _getCached<List<YtSong>>(cacheKey);
-    if (cached != null) return cached;
+  /// Network half of [getUpNext].
+  Future<List<YtSong>> _fetchUpNext(String videoId) async {
 
     try {
       debugPrint('[YtMusicService] getUpNext: videoId=$videoId');
@@ -1306,7 +1597,8 @@ class YtMusicService {
         final artist = _runs(shortByline);
 
         final thumbWrapper = panelVideo['thumbnail'];
-        final coverUrl = _thumbFromWrapper(thumbWrapper);
+        final rawCoverUrl = _thumbFromWrapper(thumbWrapper);
+        final coverUrl = ThumbnailUrl.normalize(rawCoverUrl, videoId: vid);
 
         final durationText =
             _nav<String>(panelVideo, ['lengthText', 'runs', 0, 'text']) ??
@@ -1327,7 +1619,6 @@ class YtMusicService {
       }
 
       debugPrint('[YtMusicService] getUpNext $videoId: ${songs.length} songs');
-      _putCache(cacheKey, songs);
       return songs;
     } catch (e) {
       debugPrint('[YtMusicService] getUpNext error: $e');
@@ -1340,13 +1631,29 @@ class YtMusicService {
   /// 2. Albums/Singles from top artist pages ([topArtistBrowseIds]).
   /// 3. Album shelves from getExplore() (cached — usually instant).
   /// Results are deduped and capped at 20. Cached 30 min.
+  ///
+  /// This feed is derived from caller-supplied seeds, so its cache key does not
+  /// distinguish between different artist sets — the same entry is reused for
+  /// whatever seeds arrive first. An empty result is deliberately *not*
+  /// cached, so a failed seed pass does not blank the shelf until restart.
   Future<List<YtAlbum>> getAlbumsForYou({
     List<String> topArtistBrowseIds = const [],
     List<YtAlbum> homeAlbums = const [],
-  }) async {
-    const cacheKey = 'albums_for_you';
-    final cached = _getCached<List<YtAlbum>>(cacheKey);
-    if (cached != null) return cached;
+  }) {
+    return _swr(
+      kAlbumsForYouKey,
+      () => _fetchAlbumsForYou(topArtistBrowseIds, homeAlbums),
+      encode: YtAlbum.encodeList,
+      decode: ytAlbumListFrom,
+      cacheEmpty: false,
+    );
+  }
+
+  /// Network half of [getAlbumsForYou].
+  Future<List<YtAlbum>> _fetchAlbumsForYou(
+    List<String> topArtistBrowseIds,
+    List<YtAlbum> homeAlbums,
+  ) async {
 
     final seen = <String>{}; // browseId dedup
     final seenTitleArtist = <String>{}; // title+artist dedup
@@ -1446,15 +1753,40 @@ class YtMusicService {
 
     final result = albums.take(20).toList();
     debugPrint('[YtMusicService] getAlbumsForYou FINAL: ${result.length}');
-    if (result.isNotEmpty) _putCache(cacheKey, result);
     return result;
   }
 
   /// Fetches an album's metadata and track list by [browseId].
-  Future<AlbumTracksData> getAlbumTracks(String browseId) async {
-    final cacheKey = 'album_tracks_$browseId';
-    final cached = _getCached<AlbumTracksData>(cacheKey);
-    if (cached != null) return cached;
+  Future<AlbumTracksData> getAlbumTracks(String browseId) => _swr(
+        albumTracksKey(browseId),
+        () => _fetchAlbumTracks(browseId),
+        encode: _encodeAlbumTracks,
+        decode: _decodeAlbumTracks,
+        cacheEmpty: false,
+      );
+
+  static Map<String, dynamic> _encodeAlbumTracks(AlbumTracksData data) => {
+        'title': data.title,
+        'artist': data.artist,
+        'coverUrl': data.coverUrl,
+        'year': data.year,
+        'tracks': YtSong.encodeList(data.tracks),
+      };
+
+  static AlbumTracksData _decodeAlbumTracks(dynamic json) {
+    final map = json is Map ? json : const {};
+    String read(String key) => map[key] is String ? map[key] as String : '';
+    return AlbumTracksData(
+      title: read('title'),
+      artist: read('artist'),
+      coverUrl: read('coverUrl'),
+      year: read('year'),
+      tracks: ytSongListFrom(map['tracks']),
+    );
+  }
+
+  /// Network half of [getAlbumTracks].
+  Future<AlbumTracksData> _fetchAlbumTracks(String browseId) async {
 
     final body = await _post('browse', {'browseId': browseId});
     if (body == null) throw Exception('No response for $browseId');
@@ -1533,15 +1865,31 @@ class YtMusicService {
 
     debugPrint('[YtMusicService] getAlbumTracks $browseId: '
         '"$title" by "$artist" — ${tracks.length} tracks');
-    _putCache(cacheKey, result);
     return result;
   }
 
-  /// Clears the entire in-memory cache.
+  /// Drops every cached feed, in memory and on disk, and re-fetches the
+  /// visitor id.
+  ///
+  /// This is the pull-to-refresh / retry escape hatch: it must reach the disk
+  /// tier too, otherwise a "refresh" would be handed the very rows it is meant
+  /// to replace.
   void clearCache() {
     _cache.clear();
+    _served.clear();
+    _revalidating.clear();
+    for (final controller in _revisions.values) {
+      if (!controller.isClosed) controller.close();
+    }
+    _revisions.clear();
+    unawaited(YtMusicFeedCache.instance.clear());
     _visitorId = null;
     _visitorIdFetchStarted = false;
+  }
+
+  /// Releases the per-key revision channels. Called when the app shuts down.
+  void dispose() {
+    clearCache();
   }
 }
 

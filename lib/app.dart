@@ -17,8 +17,11 @@ import 'widgets/remote_playback_banner.dart';
 import 'widgets/offline_indicator.dart';
 import 'providers/player_provider.dart';
 import 'providers/local_music_provider.dart';
-import 'providers/download_provider.dart';
+import 'services/download_index_service.dart';
+
 import 'providers/sync_provider.dart';
+import 'providers/connectivity_provider.dart';
+
 import 'providers/presence_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/listen_party_provider.dart';
@@ -361,6 +364,26 @@ class _AppShellState extends ConsumerState<AppShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Listen to connectivity changes and drive offline mode on SyncService.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.listenManual(connectivityProvider, (prev, next) {
+        final wasOnline = prev?.isOnline ?? true;
+        final isOnline  = next.isOnline;
+        final sync      = ref.read(syncProvider.notifier);
+        sync.setOfflineMode(!isOnline);
+        if (!wasOnline && isOnline) {
+          // Reconnect: re-subscribe to Firestore; let remote state win.
+          final isPlaying = ref.read(playerProvider).isPlaying;
+          sync.reconnect(isActivelyPlaying: isPlaying).catchError((_) {});
+          // Also refresh library from Firestore.
+          final uid = ref.read(authServiceProvider).currentUser?.uid;
+          if (uid != null) {
+            ref.read(libraryProvider.notifier).initForUser(uid);
+          }
+        }
+      }, fireImmediately: true);
+    });
+
     if (Platform.isAndroid) {
       _androidLifecycleChannel.setMethodCallHandler((call) async {
         if (call.method == 'taskRemoved') {
@@ -405,7 +428,7 @@ class _AppShellState extends ConsumerState<AppShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(localMusicProvider.notifier).scan();
-      ref.read(downloadProvider.notifier).refresh();
+      DownloadIndexService.instance.runStartupMaintenance();
       final uid = ref.read(authServiceProvider).currentUser?.uid;
       if (uid != null) {
         ref.read(presenceProvider.notifier).start(

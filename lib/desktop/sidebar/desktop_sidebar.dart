@@ -25,6 +25,7 @@ import '../../widgets/import_playlist_dialog.dart';
 class DesktopSidebar extends ConsumerStatefulWidget {
   final Playlist? selectedPlaylist;
   final void Function(Playlist?) onPlaylistSelected;
+  final VoidCallback? onDownloadsSelected;
 
   /// Width to render at. When null the theme default for the current window
   /// is used instead.
@@ -43,6 +44,7 @@ class DesktopSidebar extends ConsumerStatefulWidget {
     super.key,
     required this.selectedPlaylist,
     required this.onPlaylistSelected,
+    this.onDownloadsSelected,
     this.width,
     this.collapsed = false,
     this.onCollapsedChanged = _ignoreCollapsedChanged,
@@ -344,6 +346,26 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
                     color: context.appTheme.dividerColor,
                     height: 16,
                     thickness: 0.5),
+              // ── Downloads ────────────────────────────────────────────
+              if (widget.onDownloadsSelected != null)
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.cloud_done_rounded,
+                      color: Color(0xFF1DB954), size: 20),
+                  title: const Text(
+                    'Downloads',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  onTap: widget.onDownloadsSelected,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                ),
+              if (widget.onDownloadsSelected != null)
+                Divider(
+                    color: context.appTheme.dividerColor,
+                    height: 16,
+                    thickness: 0.5),
+
               if (library.playlists.isEmpty && library.folders.isEmpty)
                 Padding(
                   padding: EdgeInsets.all(16),

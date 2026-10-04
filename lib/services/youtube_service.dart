@@ -12,22 +12,46 @@
 //
 // This means songs the user played before will start with zero manifest
 // round-trip, exactly like YT Music's behaviour.
+//
+// Safety margin
+// ─────────────────────────────────────────────────────────────
+//   Entries are stored with an explicit absolute `expiry`, not just a
+//   fetch timestamp, and are only handed out while more than
+//   [_kMinRemaining] of life is left. Google kills signed stream URLs
+//   without warning, so a URL that is about to die must never start a
+//   load we cannot finish. Rows written before the `expiry` field
+//   existed are still read (their `ts` is converted on the fly), so
+//   upgrading never discards a warm cache.
 // ============================================================
 
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:hive/hive.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../models/song.dart';
 
 const _kTtl = Duration(hours: 5);
+
+/// Minimum remaining validity before a cached URL may be served.
+const _kMinRemaining = Duration(minutes: 10);
+
 const _kHiveBox = 'stream_url_cache';
 const _kStreamCachePrefix = 'stream_v4_';
 
 class _CachedUrl {
   final String url;
-  final DateTime fetchedAt;
-  _CachedUrl(this.url, this.fetchedAt);
-  bool get isExpired => DateTime.now().difference(fetchedAt) > _kTtl;
+
+  /// Absolute moment this URL stops being usable.
+  final DateTime expiry;
+
+  const _CachedUrl(this.url, this.expiry);
+
+  bool get isExpired => !DateTime.now().isBefore(expiry);
+
+  /// True when there is enough life left to safely start a load.
+  bool get isUsable => expiry.difference(DateTime.now()) > _kMinRemaining;
 }
 
 class YoutubeService {
@@ -49,19 +73,74 @@ class YoutubeService {
   Box get _hive => Hive.box(_kHiveBox);
 
   _CachedUrl? _readHive(String id) {
-    final map = _hive.get(id);
-    if (map == null) return null;
-    final ts = map['ts'] as int?;
-    final url = map['url'] as String?;
-    if (ts == null || url == null || url.isEmpty) return null;
-    return _CachedUrl(url, DateTime.fromMillisecondsSinceEpoch(ts));
+    try {
+      final map = _hive.get(id);
+      if (map is! Map) return null;
+      final url = map['url'];
+      if (url is! String || url.isEmpty) return null;
+
+      final expiry = map['expiry'];
+      if (expiry is int) {
+        return _CachedUrl(url, DateTime.fromMillisecondsSinceEpoch(expiry));
+      }
+      // Row written before the `expiry` field existed: derive it from the
+      // fetch timestamp so an upgrade keeps every warm entry usable.
+      final ts = map['ts'];
+      if (ts is int) {
+        return _CachedUrl(
+          url,
+          DateTime.fromMillisecondsSinceEpoch(ts).add(_kTtl),
+        );
+      }
+    } catch (_) {
+      // A malformed row must never break resolution — treat it as a miss.
+    }
+    return null;
   }
 
   Future<void> _writeHive(String id, String url) async {
-    await _hive.put(id, {
-      'url': url,
-      'ts': DateTime.now().millisecondsSinceEpoch,
-    });
+    try {
+      await _hive.put(id, {
+        'url': url,
+        'expiry': DateTime.now().add(_kTtl).millisecondsSinceEpoch,
+      });
+    } catch (e) {
+      // A cache write failure must never fail playback.
+      debugPrint('[YoutubeService] stream URL cache write failed: $e');
+    }
+  }
+
+  /// Drops every cached URL that can no longer be served, in both tiers.
+  ///
+  /// Called once at startup so a long-dormant install does not carry a box
+  /// full of dead rows. Returns the number of rows removed.
+  Future<int> pruneExpired() async {
+    var removed = 0;
+    try {
+      if (Hive.isBoxOpen(_kHiveBox)) {
+        final box = Hive.box(_kHiveBox);
+        final dead = <String>[];
+        for (final key in box.keys) {
+          if (key is! String || !key.startsWith(_kStreamCachePrefix)) continue;
+          final entry = _readHive(key);
+          if (entry == null || !entry.isUsable) dead.add(key);
+        }
+        if (dead.isNotEmpty) {
+          await box.deleteAll(dead);
+          removed += dead.length;
+        }
+      }
+    } catch (e) {
+      debugPrint('[YoutubeService] stream URL prune failed: $e');
+    }
+    try {
+      _mem.removeWhere((_, value) => !value.isUsable);
+      _videoMem.removeWhere((_, value) => !value.isUsable);
+    } catch (_) {}
+    if (removed > 0) {
+      debugPrint('[YoutubeService] pruned $removed expired stream URL(s)');
+    }
+    return removed;
   }
 
   // ── Search ───────────────────────────────────────────────────────────────
@@ -93,13 +172,14 @@ class YoutubeService {
   Future<String> getAudioStreamUrl(String videoId) async {
     // L1 — memory
     final mem = _mem[videoId];
-    if (mem != null && !mem.isExpired) return mem.url;
+    if (mem != null && mem.isUsable) return mem.url;
+    if (mem != null) _mem.remove(videoId);
 
     // L2 — Hive (fast disk read, survives restarts)
     // Use a versioned key so URLs cached before the compatibility fallback
     // existed are not reused indefinitely.
     final hive = _readHive('$_kStreamCachePrefix$videoId');
-    if (hive != null && !hive.isExpired) {
+    if (hive != null && hive.isUsable) {
       _mem[videoId] = hive; // promote to L1
       return hive.url;
     }
@@ -191,10 +271,9 @@ class YoutubeService {
       final url = candidates.first;
 
       // Write to both caches
-      final cached = _CachedUrl(url, DateTime.now());
+      final cached = _CachedUrl(url, DateTime.now().add(_kTtl));
       _mem[videoId] = cached;
-      _writeHive('$_kStreamCachePrefix$videoId', url)
-          .catchError((_) {}); // non-blocking disk write
+      unawaited(_writeHive('$_kStreamCachePrefix$videoId', url));
 
       return url;
     } on VideoRequiresPurchaseException {
@@ -216,7 +295,8 @@ class YoutubeService {
 
   Future<String> getVideoStreamUrl(String videoId) async {
     final mem = _videoMem[videoId];
-    if (mem != null && !mem.isExpired) return mem.url;
+    if (mem != null && mem.isUsable) return mem.url;
+    if (mem != null) _videoMem.remove(videoId);
 
     if (_inflight.containsKey('v_$videoId')) return _inflight['v_$videoId']!;
 
@@ -246,7 +326,7 @@ class YoutubeService {
       streams.sort((a, b) => b.bitrate.compareTo(a.bitrate));
       final url = streams.first.url.toString();
 
-      _videoMem[videoId] = _CachedUrl(url, DateTime.now());
+      _videoMem[videoId] = _CachedUrl(url, DateTime.now().add(_kTtl));
       return url;
     } on VideoRequiresPurchaseException {
       throw YoutubeServiceException('This video requires a purchase.');
@@ -262,9 +342,9 @@ class YoutubeService {
 
   void prefetchUrl(String videoId) {
     final mem = _mem[videoId];
-    if (mem != null && !mem.isExpired) return;
+    if (mem != null && mem.isUsable) return;
     final hive = _readHive('$_kStreamCachePrefix$videoId');
-    if (hive != null && !hive.isExpired) {
+    if (hive != null && hive.isUsable) {
       _mem[videoId] = hive;
       return; // already cached — no network needed
     }
@@ -296,24 +376,43 @@ class YoutubeService {
     // Old song records may hold audio-only streams that previously stalled on
     // some devices. Prefer a compatible muxed stream for the first attempt.
     if (cachedMime?.startsWith('audio/') ?? false) return;
-    if (song.streamUrl != null &&
-        song.streamUrlFetchedAt != null &&
-        !song.isStreamUrlExpired) {
-      _mem[song.id] ??= _CachedUrl(song.streamUrl!, song.streamUrlFetchedAt!);
-    }
+    final fetchedAt = song.streamUrlFetchedAt;
+    if (song.streamUrl == null || fetchedAt == null) return;
+    // Apply the same 10-minute safety margin as every other read path so a
+    // per-Song URL is never served in its final minutes.
+    final expiry = fetchedAt.add(_kTtl);
+    if (expiry.difference(DateTime.now()) <= _kMinRemaining) return;
+    _mem[song.id] ??= _CachedUrl(song.streamUrl!, expiry);
   }
 
   void rememberAudioStreamUrl(String videoId, String url) {
-    _mem[videoId] = _CachedUrl(url, DateTime.now());
-    _writeHive('$_kStreamCachePrefix$videoId', url).catchError((_) {});
+    _mem[videoId] = _CachedUrl(url, DateTime.now().add(_kTtl));
+    unawaited(_writeHive('$_kStreamCachePrefix$videoId', url));
+  }
+
+  /// Drops any cached URL for [videoId] in both tiers.
+  ///
+  /// Used when a stream turns out to be dead (expired signature, refused
+  /// container) so the next attempt is forced to re-resolve from the manifest
+  /// instead of replaying a known-bad URL.
+  void forgetStreamUrl(String videoId) {
+    _mem.remove(videoId);
+    try {
+      final key = '$_kStreamCachePrefix$videoId';
+      if (Hive.isBoxOpen(_kHiveBox) && Hive.box(_kHiveBox).containsKey(key)) {
+        Hive.box(_kHiveBox).delete(key).catchError((_) {});
+      }
+    } catch (_) {
+      // Cache eviction is best-effort.
+    }
   }
 
   void prefetchBatch(List<String> videoIds, {int maxConcurrent = 3}) {
     final needed = videoIds.where((id) {
       final mem = _mem[id];
-      if (mem != null && !mem.isExpired) return false;
+      if (mem != null && mem.isUsable) return false;
       final hive = _readHive('$_kStreamCachePrefix$id');
-      if (hive != null && !hive.isExpired) {
+      if (hive != null && hive.isUsable) {
         _mem[id] = hive; // warm L1 from L2 for free
         return false;
       }

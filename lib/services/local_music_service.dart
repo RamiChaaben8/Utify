@@ -17,7 +17,8 @@ import 'dart:isolate';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/song.dart';
-import 'download_service.dart';
+import '../platform/download_storage.dart';
+
 
 const _audioExts = {
   '.mp3', '.m4a', '.aac', '.ogg', '.flac',
@@ -39,7 +40,7 @@ class LocalMusicService {
 
     // 1. Always include the app-scoped Tuneify download folder
     try {
-      dirs.add(await DownloadService.getTuneifyDir());
+      dirs.add(await getDownloadDirectory());
     } catch (_) {}
 
     if (Platform.isAndroid) {

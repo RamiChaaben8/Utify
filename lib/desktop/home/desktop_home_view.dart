@@ -2,7 +2,6 @@
 // desktop/home/desktop_home_view.dart
 // ============================================================
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +12,8 @@ import '../../providers/library_provider.dart';
 import '../../providers/player_provider.dart';
 import '../shell/desktop_navigation.dart';
 import '../theme/desktop_theme.dart';
+import '../../utils/thumbnail_url.dart';
+import '../../widgets/app_thumbnail.dart';
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 
@@ -44,22 +45,15 @@ double _cardTotalHeight(double cardWidth, int titleLines, int subtitleLines) {
 
 /// Best cover URL for a [YtSong], falling back to a square YouTube thumbnail.
 String _songCoverUrl(YtSong song) {
-  if (song.coverUrl.isNotEmpty) return song.coverUrl;
-  if (song.videoId.isNotEmpty) {
-    // mqdefault is 320×180 (16:9) — we crop it to square via BoxFit.cover.
-    // Use maxresdefault first (1280×720) for sharper result, fall back to hq.
-    return 'https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg';
-  }
-  return '';
+  return ThumbnailUrl.normalize(song.coverUrl, videoId: song.videoId);
 }
 
 /// Best cover URL for a local [Song], falling back to YouTube thumbnail.
 String _localSongCoverUrl(Song song) {
-  if (song.thumbnailUrl.isNotEmpty) return song.thumbnailUrl;
-  if (song.id.isNotEmpty && !song.isLocal) {
-    return 'https://i.ytimg.com/vi/${song.id}/mqdefault.jpg';
-  }
-  return '';
+  return ThumbnailUrl.normalize(
+    song.thumbnailUrl,
+    videoId: song.isLocal ? null : song.id,
+  );
 }
 
 // ─── Top-level view ───────────────────────────────────────────────────────────
@@ -550,23 +544,15 @@ class _QuickPickRowState extends State<_QuickPickRow> {
           child: Row(
             children: [
               // Square cover — BoxFit.cover crops any aspect ratio
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.horizontal(left: Radius.circular(8)),
-                child: SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: imageUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) =>
-                              _placeholder(56, 56, theme),
-                        )
-                      : _placeholder(56, 56, theme),
-                ),
+              AppThumbnail(
+                imageUrl: imageUrl,
+                videoId: widget.song.videoId,
+                width: 56,
+                height: 56,
+                borderRadius: 8,
+                backgroundColor: theme.card,
+                errorWidget: _placeholder(56, 56, theme),
+                placeholder: _placeholder(56, 56, theme),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -972,21 +958,14 @@ class _SectionHeader extends StatelessWidget {
 
 Widget _squareImage(String url, double size, double radius,
     AppThemeData theme) {
-  return ClipRRect(
-    borderRadius: BorderRadius.circular(radius),
-    child: SizedBox(
-      width: size,
-      height: size,
-      child: url.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: url,
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => _placeholder(size, size, theme, radius: radius),
-            )
-          : _placeholder(size, size, theme, radius: radius),
-    ),
+  return AppThumbnail(
+    imageUrl: url,
+    width: size,
+    height: size,
+    borderRadius: radius,
+    backgroundColor: theme.card,
+    errorWidget: _placeholder(size, size, theme, radius: radius),
+    placeholder: _placeholder(size, size, theme, radius: radius),
   );
 }
 
@@ -1211,32 +1190,21 @@ class _YtArtistCardState extends State<_YtArtistCard> {
               child: Stack(
                 children: [
                   ClipOval(
-                    child: SizedBox(
+                    child: AppThumbnail(
+                      imageUrl: widget.artist.pictureUrl,
                       width: _imageSize,
                       height: _imageSize,
-                      child: widget.artist.pictureUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: widget.artist.pictureUrl,
-                              width: _imageSize,
-                              height: _imageSize,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => Container(
-                                width: _imageSize,
-                                height: _imageSize,
-                                color: _kSkeletonColor,
-                                child: const Icon(Icons.person,
-                                    color: Colors.white54,
-                                    size: _imageSize * 0.4),
-                              ),
-                            )
-                          : Container(
-                              width: _imageSize,
-                              height: _imageSize,
-                              color: _kSkeletonColor,
-                              child: const Icon(Icons.person,
-                                  color: Colors.white54,
-                                  size: _imageSize * 0.4),
-                            ),
+                      borderRadius: _imageSize / 2,
+                      backgroundColor: _kSkeletonColor,
+                      placeholderIcon: Icons.person,
+                      errorWidget: Container(
+                        width: _imageSize,
+                        height: _imageSize,
+                        color: _kSkeletonColor,
+                        child: const Icon(Icons.person,
+                            color: Colors.white54,
+                            size: _imageSize * 0.4),
+                      ),
                     ),
                   ),
                   if (_hovered)

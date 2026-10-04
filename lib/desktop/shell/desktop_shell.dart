@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // desktop/shell/desktop_shell.dart
 // Main 3-column layout shell for Windows.
 // ============================================================
@@ -11,7 +11,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/playlist.dart';
 import 'desktop_navigation.dart';
 import '../../providers/local_music_provider.dart';
-import '../../providers/download_provider.dart';
+import '../../services/download_index_service.dart';
+
 import '../../providers/panel_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -40,6 +41,8 @@ import '../../widgets/offline_indicator.dart';
 import '../friends/desktop_friends_panel.dart';
 import '../friends/desktop_friend_profile_view.dart';
 import '../settings/desktop_settings_view.dart';
+import '../views/downloads_view.dart';
+
 import '../../widgets/update_dialog.dart';
 import '../../services/taskbar_controls.dart';
 
@@ -65,6 +68,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
   static const int _viewSettings = 3;
   static const int _viewFriendProfile = 4;
   static const int _viewYtAlbum = 5;
+  static const int _viewDownloads = 6;
 
   final List<int> _history = [_viewHome];
   int _historyIndex = 0;
@@ -189,7 +193,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(localMusicProvider.notifier).scan();
-      ref.read(downloadProvider.notifier).refresh();
+      DownloadIndexService.instance.runStartupMaintenance();
       final uid = ref.read(authServiceProvider).currentUser?.uid;
       if (uid != null) {
         ref.read(presenceProvider.notifier).start(
@@ -228,7 +232,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
   /// [anchor] is the avatar's bottom-right corner in global coordinates. It was
   /// a centred `AlertDialog` before: a modal card floating in the middle of the
   /// window, with the email and current theme as ListTile subtitles. This is the
-  /// Spotify shape — a right-aligned menu hanging off the avatar, one label per
+  /// Spotify shape â€” a right-aligned menu hanging off the avatar, one label per
   /// row. `showMenu` gives us the modal barrier and Esc handling for free.
   Future<void> _showAccountMenu(Offset anchor) async {
     if (ref.read(guestSessionProvider)) {
@@ -293,7 +297,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
   }
 
   /// Exactly the five entries the account dialog had. The Theme picker itself
-  /// lives in Settings → Appearance, so "Theme" is a way in, not a second
+  /// lives in Settings â†’ Appearance, so "Theme" is a way in, not a second
   /// control.
   List<PopupMenuEntry<_AccountAction>> _accountMenuEntries() {
     final theme = context.appTheme;
@@ -402,7 +406,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
     });
 
     // Surfaces without a direct sidebar handle ask for the centre view this way
-    // — the friend profile's playlist grid, and the friend activity panel's
+    // â€” the friend profile's playlist grid, and the friend activity panel's
     // "Open profile" entry. Routed through _navigateTo so the view history and
     // the back button stay correct, then cleared so a rebuild doesn't reopen it.
     ref.listen<Playlist?>(desktopPlaylistRequestProvider, (_, next) {
@@ -425,7 +429,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
 
     // Settings is a whole-window page, not a centre view: the library rail, the
     // now-playing/lyrics/queue panel and the player bar are all suppressed so
-    // nothing competes with the form. Playback keeps running underneath — the
+    // nothing competes with the form. Playback keeps running underneath â€” the
     // bar is just not drawn.
     final fullScreenSettings = _currentView == _viewSettings;
 
@@ -437,7 +441,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
           final layout = context.appTheme.layout;
           final screenW = constraints.maxWidth;
 
-          // ── Panel widths (Spotify-style, user draggable) ─────────
+          // â”€â”€ Panel widths (Spotify-style, user draggable) â”€â”€â”€â”€â”€â”€â”€â”€â”€
           // Each panel may grow up to its own limit, but never far enough to
           // squeeze the centre view out of the window.
           final gapTotal = layout.panelGap * (wideEnough ? 2 : 1);
@@ -486,7 +490,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
           // (above the player bar too) when PanelMode.lyrics is active.
           final shell = Column(
             children: [
-              // ── Title bar ───────────────────────────────────────
+              // â”€â”€ Title bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               DesktopTitleBar(
                 currentView: _currentView,
                 canGoBack: _canGoBack,
@@ -498,7 +502,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                 onSearch: (q) {
                   ref.read(searchProvider.notifier).search(q);
                 },
-                // Called when user presses Enter or taps a recent search —
+                // Called when user presses Enter or taps a recent search â€”
                 // the provider search is already fired inside the title bar,
                 // so we only need to navigate here.
                 onNavigateToSearch: (q) => _navigateTo(_viewSearch),
@@ -509,19 +513,19 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                 friendsPanelOpen: panelMode == PanelMode.friends,
                 onFriendsTap: guestMode ? null : _toggleFriendsPanel,
                 // Appearance works without an account, so the gear stays live
-                // in guest mode — Profile/Privacy simply explain why they
+                // in guest mode â€” Profile/Privacy simply explain why they
                 // can't be changed.
                 onSettingsTap: _toggleSettings,
               ),
 
               // Settings is a whole-window page: everything below the title bar
-              // — library rail, now-playing/lyrics/queue panel, player bar —
+              // â€” library rail, now-playing/lyrics/queue panel, player bar â€”
               // is replaced by the settings surface. Playback keeps running
               // underneath; the bar simply is not drawn.
               if (fullScreenSettings)
                 Expanded(child: _buildCenterView())
               else ...[
-                // ── Main content row ──────────────────────────────────
+                // â”€â”€ Main content row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 Expanded(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -542,6 +546,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                             _navigateTo(_viewHome);
                           }
                         },
+                         onDownloadsSelected: () => _navigateTo(_viewDownloads),
                       ),
                       // Drag the divider to resize the sidebar. Dragging past the
                       // minimum expanded width snaps it to the icon rail, and
@@ -566,7 +571,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                           ),
                         ),
                       ),
-                      // Right panel — one of Now Playing / Queue / Friend activity.
+                      // Right panel â€” one of Now Playing / Queue / Friend activity.
                       // LyricsPanel is a separate fullscreen overlay (below).
                       if (wideEnough) ...[
                         // Drag the divider to resize the video + lyrics card panel.
@@ -621,10 +626,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
   
                 SizedBox(height: layout.panelGap),
   
-                // ── Offline indicator ─────────────────────────────────
+                // â”€â”€ Offline indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 const OfflineIndicator(),
   
-                // ── Player bar ────────────────────────────────────────
+                // â”€â”€ Player bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 const DesktopPlayerBar(),
               ],
             ],
@@ -645,7 +650,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
                 right: 0,
                 child: RemotePlaybackBanner(),
               ),
-              // Never over the full-screen settings page — a lyrics overlay there would
+              // Never over the full-screen settings page â€” a lyrics overlay there would
               // hide the form the user just opened settings to reach.
               if (panelMode == PanelMode.lyrics && !fullScreenSettings)
                 LyricsPanel(
@@ -699,6 +704,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
           );
         }
         return const DesktopHomeView(key: ValueKey('home'));
+      case _viewDownloads:
+        return const DownloadsView(key: ValueKey('downloads'));
       default:
         return const DesktopHomeView(key: ValueKey('home'));
     }

@@ -6,9 +6,9 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/song.dart';
+import 'app_thumbnail.dart';
 
 class HorizontalSongCard extends StatelessWidget {
   final Song song;
@@ -27,25 +27,13 @@ class HorizontalSongCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Thumbnail
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedNetworkImage(
-                imageUrl: song.thumbnailUrl,
-                width: 130,
-                height: 100,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
-                  width: 130,
-                  height: 100,
-                  color: const Color(0xFF282828),
-                ),
-                errorWidget: (_, __, ___) => Container(
-                  width: 130,
-                  height: 100,
-                  color: const Color(0xFF282828),
-                  child: const Icon(Icons.music_note, color: Color(0xFF3A3A3A)),
-                ),
-              ),
+            AppThumbnail(
+              imageUrl: song.thumbnailUrl,
+              videoId: song.id,
+              width: 130,
+              height: 100,
+              borderRadius: 8,
+              backgroundColor: const Color(0xFF282828),
             ),
             const SizedBox(height: 6),
             // Title

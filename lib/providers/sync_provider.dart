@@ -24,10 +24,23 @@ class SyncNotifier extends StateNotifier<SyncState> {
   SyncService get service => _service;
 
   Future<void> init(String uid) async {
-    // Always re-init (don't skip if uid matches — user may have logged out
-    // and back in, resetting the Firestore subscription).
     await _service.init(uid);
     state = state.copyWith(uid: uid, initialised: true);
+  }
+
+  /// Suspend or resume Firestore sync writes based on connectivity.
+  void setOfflineMode(bool offline) => _service.setOfflineMode(offline);
+
+  /// Re-subscribe to Firestore after coming back online.
+  /// If [isActivelyPlaying] is true this device publishes its current state;
+  /// otherwise remote state wins for queue/position.
+  Future<void> reconnect({required bool isActivelyPlaying}) async {
+    final uid = state.uid;
+    if (uid == null) return;
+    _service.setOfflineMode(false);
+    // Re-run init to refresh Firestore subscriptions.
+    await _service.init(uid);
+    state = state.copyWith(initialised: true);
   }
 
   void reset() {

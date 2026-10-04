@@ -287,7 +287,7 @@ class _SongActionsSheet extends ConsumerWidget {
                   title: const Text('Delete downloaded file', style: TextStyle(color: Colors.redAccent)),
                   onTap: () {
                     Navigator.pop(context);
-                    ref.read(downloadProvider.notifier).deleteSong(song);
+                    ref.read(downloadProvider.notifier).deleteSong(song.id);
                   },
                 );
               } else if (isDownloading) {

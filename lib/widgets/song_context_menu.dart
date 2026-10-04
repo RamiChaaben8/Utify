@@ -174,7 +174,7 @@ Future<void> showSongContextMenu({
         );
       }
     case _Action.deleteDownload:
-      await ref.read(downloadProvider.notifier).deleteSong(song);
+      await ref.read(downloadProvider.notifier).deleteSong(song.id);
       if (context.mounted) _snack(context, 'Downloaded file deleted');
   }
 }

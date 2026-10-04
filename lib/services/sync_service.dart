@@ -1,30 +1,30 @@
-// ============================================================
+﻿// ============================================================
 // services/sync_service.dart
 //
 // Simple remote-control sync + active-device ownership.
 //
 // Active device model (Spotify-style)
-// ─────────────────────────────────────────────────────────────
-// • Exactly one device is "active" at a time — it owns playback,
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â€¢ Exactly one device is "active" at a time â€” it owns playback,
 //   loads audio, and executes transport commands.
-// • All other devices are "passive" — they show the device picker
+// â€¢ All other devices are "passive" â€” they show the device picker
 //   and can send commands (play/pause/next/prev) to the active
 //   device via Firestore, but they do NOT load audio.
-// • A passive device becomes active by tapping itself in the
+// â€¢ A passive device becomes active by tapping itself in the
 //   device picker (calls claimAsActiveDevice()).
-// • The previous active device becomes passive immediately.
+// â€¢ The previous active device becomes passive immediately.
 //
 // What syncs
-// ─────────────────────────────────────────────────────────────
-// • play / pause / next / prev / playSong commands
-// • Queue + current song (so every device shows the same queue)
-// • activeDeviceId (who owns playback right now)
-// • Device name (for the picker list)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â€¢ play / pause / next / prev / playSong commands
+// â€¢ Queue + current song (so every device shows the same queue)
+// â€¢ activeDeviceId (who owns playback right now)
+// â€¢ Device name (for the picker list)
 //
 // What does NOT sync
-// ─────────────────────────────────────────────────────────────
-// • Playback position and play state
-// • Volume — local only
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â€¢ Playback position and play state
+// â€¢ Volume â€” local only
 // ============================================================
 
 import 'dart:async';
@@ -36,7 +36,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:hive/hive.dart';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// The command written to Firestore by the acting device.
 enum RemoteCommand {
@@ -92,7 +92,7 @@ class RemoteCommandDoc {
   }
 }
 
-// ── Service ──────────────────────────────────────────────────────────────────
+// â”€â”€ Service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class SyncService {
   final FirestoreService _fs;
@@ -107,12 +107,12 @@ class SyncService {
   StreamSubscription? _activeDeviceSub;
   Timer? _heartbeatTimer;
 
-  // Broadcast stream of remote commands — PlayerNotifier listens.
+  // Broadcast stream of remote commands â€” PlayerNotifier listens.
   final StreamController<RemoteCommandDoc> _cmdController =
       StreamController<RemoteCommandDoc>.broadcast();
   Stream<RemoteCommandDoc> get remoteCommandStream => _cmdController.stream;
 
-  // Broadcast stream of active device changes — PlayerNotifier + UI listens.
+  // Broadcast stream of active device changes â€” PlayerNotifier + UI listens.
   final StreamController<ActiveDeviceDoc?> _activeDeviceController =
       StreamController<ActiveDeviceDoc?>.broadcast();
   Stream<ActiveDeviceDoc?> get activeDeviceStream =>
@@ -125,10 +125,30 @@ class SyncService {
 
   void setGuestMode(bool enabled) => _guestMode = enabled;
 
+  /// When true, Firestore writes are silently skipped.
+  bool _offlineMode = false;
+
+  /// Pause or resume Firestore sync writes.
+  /// Pass true when going offline, false on reconnect.
+  void setOfflineMode(bool offline) {
+    _offlineMode = offline;
+    if (offline) {
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+    } else if (_uid != null && _deviceId != null) {
+      final platform = _detectPlatform();
+      _fs.registerDevice(_uid!, _deviceId!, _deviceName!, platform).catchError((_) {});
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        _fs.registerDevice(_uid!, _deviceId!, _deviceName!, platform).catchError((_) {});
+      });
+    }
+  }
+
   String? get deviceId => _deviceId;
   String? get deviceName => _deviceName;
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  // â”€â”€ Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> init(String uid) async {
     _uid = uid;
@@ -169,7 +189,7 @@ class SyncService {
     _isActive = false;
     _uid = null;
     _deviceId = null;
-    // Do NOT close the broadcast controllers — listeners survive logout/re-login.
+    // Do NOT close the broadcast controllers â€” listeners survive logout/re-login.
   }
 
   void _onRawCmd(Map<String, dynamic>? raw) {
@@ -188,7 +208,7 @@ class SyncService {
     _activeDeviceController.add(doc);
   }
 
-  // ── Active device claim ───────────────────────────────────────────────────
+  // â”€â”€ Active device claim â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /// Make this device the active playback device.
   Future<void> claimAsActiveDevice() async {
@@ -220,7 +240,7 @@ class SyncService {
     _isActive = false;
   }
 
-  // ── Write API ─────────────────────────────────────────────────────────────
+  // â”€â”€ Write API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> sendCommand({
     required RemoteCommand command,
@@ -251,6 +271,7 @@ class SyncService {
       positionMs: positionMs,
       isPlaying: isPlaying,
     );
+    if (_offlineMode) return; // Offline — skip Firestore write silently.
     await _fs.writeRemoteCommand(
       uid: _uid!,
       deviceId: _deviceId!,
@@ -283,7 +304,7 @@ class SyncService {
     );
   }
 
-  // ── Restore on login ──────────────────────────────────────────────────────
+  // â”€â”€ Restore on login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /// Returns the last saved queue/song for session restore.
   Future<RemoteCommandDoc?> getLastState() async {
@@ -373,14 +394,14 @@ class SyncService {
 
   String _playbackCacheKey(String uid) => 'playback_state_$uid';
 
-  // ── Device list stream ────────────────────────────────────────────────────
+  // â”€â”€ Device list stream â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Stream<List<DeviceInfo>> devicesStream() {
     if (_uid == null) return const Stream.empty();
     return _fs.devicesStream(_uid!);
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   String _detectPlatform() {
     if (kIsWeb) return 'web';
@@ -392,3 +413,4 @@ class SyncService {
     return 'unknown';
   }
 }
+

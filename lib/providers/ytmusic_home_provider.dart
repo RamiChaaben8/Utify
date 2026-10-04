@@ -1,6 +1,8 @@
 // lib/providers/ytmusic_home_provider.dart
 // Home-feed state management for the YouTube Music integration.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -250,6 +252,11 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
   // ignore: unused_field
   final List<Song> _likedSongs;
 
+  /// Background revalidation channels. The service serves a stale feed
+  /// instantly and refreshes behind it; these listeners patch the screen when
+  /// the refresh lands and actually changed something.
+  final Map<String, StreamSubscription<Object>> _revisionSubs = {};
+
   HomeFeedNotifier(
     this._service,
     this._recentlyPlayed,
@@ -260,6 +267,166 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
 
   void _patch(HomeFeedState Function(HomeFeedState s) updater) {
     if (mounted) state = updater(state);
+  }
+
+  /// Subscribes to background updates for one feed.
+  ///
+  /// Returns the flag the caller must check before applying the value it gets
+  /// back from its own await: a revision that arrives during that await
+  /// already carries newer data, and applying the await's result afterwards
+  /// would overwrite it with the stale payload we just replaced.
+  ///
+  /// ```dart
+  /// final revisionPending = _watchRevision(key, apply);
+  /// final value = await service.someGetter();
+  /// if (revisionPending()) return;   // something already applied
+  /// apply(value);
+  /// ```
+  bool Function() _watchRevision<T extends Object>(
+    String key,
+    void Function(T value) apply,
+  ) {
+    var applied = false;
+    _revisionSubs[key]?.cancel();
+    _revisionSubs[key] = _service.revisions<T>(key).listen((value) {
+      applied = true;
+      debugPrint('[HomeFeed] revision for $key — patching state');
+      apply(value);
+    });
+    return () => applied;
+  }
+
+  @override
+  void dispose() {
+    for (final sub in _revisionSubs.values) {
+      sub.cancel();
+    }
+    _revisionSubs.clear();
+    super.dispose();
+  }
+
+  // ── Feed application ───────────────────────────────────────────────────────
+  //
+  // The initial read and the background revalidation both funnel through these
+  // two methods, so a refreshed feed can never produce a differently-shaped
+  // state than the first load did.
+
+  /// Applies a home-feed payload.
+  ///
+  /// [albumsCollector] is only supplied by the first load: Albums For You
+  /// needs the home shelves as a seed, and that computation runs exactly once
+  /// per load, not on every revalidation.
+  void _applyHomeFeed(
+    List<YtSection> sections,
+    List<YtMoodChip> chips,
+    List<YtAlbum>? albumsCollector,
+  ) {
+    debugPrint('[HomeFeed] getHomeFeed → ${sections.length} sections, '
+        '${chips.length} chips');
+    for (final s in sections) {
+      debugPrint('  section "${s.title}": '
+          '${s.songs.length} songs, ${s.albums.length} albums, '
+          '${s.artists.length} artists, ${s.playlists.length} playlists');
+      if (albumsCollector == null) continue;
+      // Collect all albums + playlists-as-albums for Albums For You
+      albumsCollector.addAll(s.albums);
+      for (final p in s.playlists) {
+        albumsCollector.add(YtAlbum(
+          browseId: p.browseId,
+          title: p.title,
+          artist: p.subtitle,
+          coverUrl: p.coverUrl,
+        ));
+      }
+    }
+
+    YtSection? songShelf;
+    for (final s in sections) {
+      if (s.songs.isNotEmpty) {
+        if (songShelf == null || s.songs.length > songShelf.songs.length) {
+          songShelf = s;
+        }
+      }
+    }
+
+    _patch((s) => s.copyWith(
+          quickPicks: songShelf?.songs ?? const [],
+          moodChips: chips,
+          quickPicksState: sections.isEmpty
+              ? const SectionState().fail('No sections returned')
+              : const SectionState().done(),
+        ));
+  }
+
+  /// Applies an Explore payload, deriving New Releases and Trending from it.
+  void _applyExplore(List<YtSection> sections) {
+    debugPrint('[HomeFeed] getExplore → ${sections.length} sections');
+    for (final s in sections) {
+      debugPrint('  explore "${s.title}": '
+          '${s.songs.length} songs, ${s.albums.length} albums, '
+          '${s.playlists.length} playlists');
+    }
+
+    // New releases: prefer an albums shelf; fall back to playlists shelf
+    // (explore sometimes encodes albums as playlist browse IDs).
+    List<YtAlbum> releases = [];
+    for (final s in sections) {
+      if (s.albums.isNotEmpty) {
+        releases = s.albums;
+        break;
+      }
+    }
+    // If still empty, try converting playlists to stub albums (title/cover)
+    if (releases.isEmpty) {
+      for (final s in sections) {
+        if (s.playlists.isNotEmpty) {
+          releases = s.playlists
+              .map((p) => YtAlbum(
+                    browseId: p.browseId,
+                    title: p.title,
+                    artist: p.subtitle,
+                    coverUrl: p.coverUrl,
+                  ))
+              .toList();
+          debugPrint('[HomeFeed] new releases: used playlists shelf '
+              '"${s.title}" (${releases.length} items)');
+          break;
+        }
+      }
+    }
+
+    // Trending: first songs shelf; prefer one whose title contains
+    // "trending", "chart", or "top" — otherwise just take the biggest.
+    List<YtSong> trendingSongs = [];
+    YtSection? best;
+    for (final s in sections) {
+      if (s.songs.isEmpty) continue;
+      final lower = s.title.toLowerCase();
+      final isPrimary = lower.contains('trend') ||
+          lower.contains('chart') ||
+          lower.contains('top');
+      if (isPrimary) {
+        trendingSongs = s.songs;
+        break;
+      }
+      if (best == null || s.songs.length > best.songs.length) {
+        best = s;
+      }
+    }
+    if (trendingSongs.isEmpty && best != null) {
+      trendingSongs = best.songs;
+    }
+
+    debugPrint('[HomeFeed] new releases: ${releases.length}, '
+        'trending: ${trendingSongs.length}');
+
+    _patch((s) => s.copyWith(
+          newReleases: releases,
+          trending: trendingSongs,
+          exploreState: sections.isEmpty
+              ? const SectionState().fail('No explore sections')
+              : const SectionState().done(),
+        ));
   }
 
   // ── Primary load ───────────────────────────────────────────────────────────
@@ -286,44 +453,16 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
     final homeAlbumsCollected = <YtAlbum>[];
 
     // ── 1. Home feed ──────────────────────────────────────────────────────────
+    // Subscribe first so a background revalidation landing during the await is
+    // not lost to the stale payload we are about to discard.
+    final homeFeedRevision = _watchRevision<(List<YtSection>, List<YtMoodChip>)>(
+      YtMusicService.kHomeFeedKey,
+      (value) => _applyHomeFeed(value.$1, value.$2, null),
+    );
+
     _service.getHomeFeed().then((result) {
-      final sections = result.$1;
-      final chips = result.$2;
-
-      debugPrint('[HomeFeed] getHomeFeed → ${sections.length} sections, '
-          '${chips.length} chips');
-      for (final s in sections) {
-        debugPrint('  section "${s.title}": '
-            '${s.songs.length} songs, ${s.albums.length} albums, '
-            '${s.artists.length} artists, ${s.playlists.length} playlists');
-        // Collect all albums + playlists-as-albums for Albums For You
-        homeAlbumsCollected.addAll(s.albums);
-        for (final p in s.playlists) {
-          homeAlbumsCollected.add(YtAlbum(
-            browseId: p.browseId,
-            title: p.title,
-            artist: p.subtitle,
-            coverUrl: p.coverUrl,
-          ));
-        }
-      }
-
-      YtSection? songShelf;
-      for (final s in sections) {
-        if (s.songs.isNotEmpty) {
-          if (songShelf == null || s.songs.length > songShelf.songs.length) {
-            songShelf = s;
-          }
-        }
-      }
-
-      _patch((s) => s.copyWith(
-            quickPicks: songShelf?.songs ?? const [],
-            moodChips: chips,
-            quickPicksState: sections.isEmpty
-                ? const SectionState().fail('No sections returned')
-                : const SectionState().done(),
-          ));
+      if (homeFeedRevision()) return;
+      _applyHomeFeed(result.$1, result.$2, homeAlbumsCollected);
     }).catchError((e) {
       debugPrint('[HomeFeed] getHomeFeed failed: $e');
       _patch((s) => s.copyWith(
@@ -333,75 +472,12 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
     }).whenComplete(taskDone);
 
     // ── 2. Explore ────────────────────────────────────────────────────────────
+    final exploreRevision =
+        _watchRevision<List<YtSection>>(YtMusicService.kExploreKey, _applyExplore);
+
     _service.getExplore().then((sections) {
-      debugPrint('[HomeFeed] getExplore → ${sections.length} sections');
-      for (final s in sections) {
-        debugPrint('  explore "${s.title}": '
-            '${s.songs.length} songs, ${s.albums.length} albums, '
-            '${s.playlists.length} playlists');
-      }
-
-      // New releases: prefer an albums shelf; fall back to playlists shelf
-      // (explore sometimes encodes albums as playlist browse IDs).
-      List<YtAlbum> releases = [];
-      for (final s in sections) {
-        if (s.albums.isNotEmpty) {
-          releases = s.albums;
-          break;
-        }
-      }
-      // If still empty, try converting playlists to stub albums (title/cover)
-      if (releases.isEmpty) {
-        for (final s in sections) {
-          if (s.playlists.isNotEmpty) {
-            releases = s.playlists
-                .map((p) => YtAlbum(
-                      browseId: p.browseId,
-                      title: p.title,
-                      artist: p.subtitle,
-                      coverUrl: p.coverUrl,
-                    ))
-                .toList();
-            debugPrint(
-                '[HomeFeed] new releases: used playlists shelf "${s.title}" '
-                '(${releases.length} items)');
-            break;
-          }
-        }
-      }
-
-      // Trending: first songs shelf; prefer one whose title contains
-      // "trending", "chart", or "top" — otherwise just take the biggest.
-      List<YtSong> trendingSongs = [];
-      YtSection? best;
-      for (final s in sections) {
-        if (s.songs.isEmpty) continue;
-        final lower = s.title.toLowerCase();
-        final isPrimary = lower.contains('trend') ||
-            lower.contains('chart') ||
-            lower.contains('top');
-        if (isPrimary) {
-          trendingSongs = s.songs;
-          break;
-        }
-        if (best == null || s.songs.length > best.songs.length) {
-          best = s;
-        }
-      }
-      if (trendingSongs.isEmpty && best != null) {
-        trendingSongs = best.songs;
-      }
-
-      debugPrint('[HomeFeed] new releases: ${releases.length}, '
-          'trending: ${trendingSongs.length}');
-
-      _patch((s) => s.copyWith(
-            newReleases: releases,
-            trending: trendingSongs,
-            exploreState: sections.isEmpty
-                ? const SectionState().fail('No explore sections')
-                : const SectionState().done(),
-          ));
+      if (exploreRevision()) return;
+      _applyExplore(sections);
     }).catchError((e) {
       debugPrint('[HomeFeed] getExplore failed: $e');
       _patch((s) => s.copyWith(
@@ -684,23 +760,17 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
   Future<void> retryQuickPicks() async {
     _patch((s) => s.copyWith(quickPicksState: const SectionState().loading()));
     try {
+      // Drops the disk tier too, so a retry really re-fetches instead of being
+      // handed the rows it is meant to replace. That also tears down the
+      // revision channels, so re-subscribe below.
       _service.clearCache();
+      final revision = _watchRevision<(List<YtSection>, List<YtMoodChip>)>(
+        YtMusicService.kHomeFeedKey,
+        (value) => _applyHomeFeed(value.$1, value.$2, null),
+      );
       final result = await _service.getHomeFeed();
-      final sections = result.$1;
-      final chips = result.$2;
-      YtSection? songShelf;
-      for (final s in sections) {
-        if (s.songs.isNotEmpty) {
-          if (songShelf == null || s.songs.length > songShelf.songs.length) {
-            songShelf = s;
-          }
-        }
-      }
-      _patch((s) => s.copyWith(
-            quickPicks: songShelf?.songs ?? const [],
-            moodChips: chips,
-            quickPicksState: const SectionState().done(),
-          ));
+      if (revision()) return;
+      _applyHomeFeed(result.$1, result.$2, null);
     } catch (e) {
       _patch((s) => s.copyWith(
             quickPicksState: const SectionState().fail('Could not load: $e'),
@@ -712,51 +782,13 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
     _patch((s) => s.copyWith(exploreState: const SectionState().loading()));
     try {
       _service.clearCache();
+      final revision = _watchRevision<List<YtSection>>(
+        YtMusicService.kExploreKey,
+        _applyExplore,
+      );
       final sections = await _service.getExplore();
-      List<YtAlbum> releases = [];
-      for (final s in sections) {
-        if (s.albums.isNotEmpty) {
-          releases = s.albums;
-          break;
-        }
-      }
-      if (releases.isEmpty) {
-        for (final s in sections) {
-          if (s.playlists.isNotEmpty) {
-            releases = s.playlists
-                .map((p) => YtAlbum(
-                      browseId: p.browseId,
-                      title: p.title,
-                      artist: p.subtitle,
-                      coverUrl: p.coverUrl,
-                    ))
-                .toList();
-            break;
-          }
-        }
-      }
-      List<YtSong> trendingSongs = [];
-      YtSection? best;
-      for (final s in sections) {
-        if (s.songs.isEmpty) continue;
-        final lower = s.title.toLowerCase();
-        if (lower.contains('trend') ||
-            lower.contains('chart') ||
-            lower.contains('top')) {
-          trendingSongs = s.songs;
-          break;
-        }
-        if (best == null || s.songs.length > best.songs.length) {
-          best = s;
-        }
-      }
-      if (trendingSongs.isEmpty && best != null) trendingSongs = best.songs;
-
-      _patch((s) => s.copyWith(
-            newReleases: releases,
-            trending: trendingSongs,
-            exploreState: const SectionState().done(),
-          ));
+      if (revision()) return;
+      _applyExplore(sections);
     } catch (e) {
       _patch((s) => s.copyWith(
             exploreState: const SectionState().fail('Could not load: $e'),

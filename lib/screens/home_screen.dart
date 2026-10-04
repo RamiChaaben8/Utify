@@ -13,7 +13,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../models/song.dart';
@@ -23,6 +22,7 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/guest_session_provider.dart';
 import 'now_playing_screen.dart';
+import '../widgets/app_thumbnail.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/listen_party_controls.dart';
 
@@ -214,24 +214,13 @@ class _QuickPlayChip extends StatelessWidget {
         child: Row(
           children: [
             // Thumbnail
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.horizontal(left: Radius.circular(6)),
-              child: CachedNetworkImage(
-                imageUrl: song.thumbnailUrl,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
-                    width: 48, height: 48, color: const Color(0xFF282828)),
-                errorWidget: (_, __, ___) => Container(
-                  width: 48,
-                  height: 48,
-                  color: const Color(0xFF282828),
-                  child: const Icon(Icons.music_note,
-                      color: Color(0xFF3A3A3A), size: 20),
-                ),
-              ),
+            AppThumbnail(
+              imageUrl: song.thumbnailUrl,
+              videoId: song.id,
+              width: 48,
+              height: 48,
+              borderRadius: 6,
+              backgroundColor: const Color(0xFF282828),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -356,26 +345,13 @@ class _SongCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Thumbnail
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: CachedNetworkImage(
-                imageUrl: song.thumbnailUrl,
-                width: 140,
-                height: 140,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
-                  width: 140,
-                  height: 140,
-                  color: const Color(0xFF1A1A1A),
-                ),
-                errorWidget: (_, __, ___) => Container(
-                  width: 140,
-                  height: 140,
-                  color: const Color(0xFF1A1A1A),
-                  child: const Icon(Icons.music_note,
-                      color: Color(0xFF3A3A3A), size: 40),
-                ),
-              ),
+            AppThumbnail(
+              imageUrl: song.thumbnailUrl,
+              videoId: song.id,
+              width: 140,
+              height: 140,
+              borderRadius: 10,
+              backgroundColor: const Color(0xFF1A1A1A),
             ),
             const SizedBox(height: 6),
             Text(

@@ -8,7 +8,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../providers/library_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/local_music_provider.dart';
 import '../providers/guest_session_provider.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -18,6 +17,8 @@ import '../widgets/import_playlist_dialog.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/listen_party_controls.dart';
 import '../desktop/widgets/invite_collaborator_dialog.dart';
+import 'downloads_screen.dart';
+
 
 /// Which songs to show in playlist/library screens.
 enum SongFilter { all, local, online }
@@ -65,7 +66,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
     final isGuest = ref.watch(guestSessionProvider);
-    final localState = ref.watch(localMusicProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
@@ -125,21 +125,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 children: [
                   _SpotifyChip(
                       label: 'Playlists', selected: true, onTap: () {}),
-                  const SizedBox(width: 8),
-                  _SpotifyChip(
-                    label: 'Local',
-                    selected: false,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => PlaylistScreen(
-                          title: 'Local Music',
-                          songs: localState.songs,
-                          icon: Icons.folder_open,
-                          forcedFilter: SongFilter.local,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -187,8 +172,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             // ── Playlist list ─────────────────────────────────────────────
             Expanded(
               child: _gridView
-                  ? _buildGridView(context, library, localState)
-                  : _buildListView(context, library, localState),
+                  ? _buildGridView(context, library)
+                  : _buildListView(context, library),
             ),
           ],
         ),
@@ -199,8 +184,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // ── List view ──────────────────────────────────────────────────────────────
 
   Widget _buildListView(
-      BuildContext context, LibraryState library, LocalMusicState localState) {
-    final items = _buildItems(library, localState);
+      BuildContext context, LibraryState library) {
+    final items = _buildItems(library);
     if (items.isEmpty) {
       return _emptyState(context);
     }
@@ -214,7 +199,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // ── Grid view ──────────────────────────────────────────────────────────────
 
   Widget _buildGridView(
-      BuildContext context, LibraryState library, LocalMusicState localState) {
+      BuildContext context, LibraryState library) {
     final playlists = [...library.playlists]..sort((a, b) {
         if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
@@ -233,7 +218,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  List<Widget> _buildItems(LibraryState library, LocalMusicState localState) {
+  List<Widget> _buildItems(LibraryState library) {
     final items = <Widget>[];
 
     // Liked Songs
@@ -251,7 +236,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       )),
     ));
 
+    // Downloads
+    items.add(_SpotifyPlaylistTile(
+      thumbnail: null,
+      isFavourite: false,
+      customIcon: const Icon(Icons.cloud_done_rounded,
+          color: Color(0xFF1DB954), size: 24),
+      title: 'Downloads',
+      subtitle: 'Offline songs',
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+      ),
+    ));
+
     // Recently Played
+
     if (library.recentlyPlayed.isNotEmpty) {
       items.add(_SpotifyPlaylistTile(
         thumbnail: library.recentlyPlayed.first.thumbnailUrl,
@@ -262,23 +261,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             title: 'Recently Played',
             songs: library.recentlyPlayed,
             icon: Icons.history,
-          ),
-        )),
-      ));
-    }
-
-    // Local Music
-    if (localState.songs.isNotEmpty) {
-      items.add(_SpotifyPlaylistTile(
-        thumbnail: null,
-        title: 'Local Music',
-        subtitle: 'Playlist • ${localState.songs.length} songs',
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => PlaylistScreen(
-            title: 'Local Music',
-            songs: localState.songs,
-            icon: Icons.folder_open,
-            forcedFilter: SongFilter.local,
           ),
         )),
       ));
@@ -952,6 +934,7 @@ class _SpotifyPlaylistTile extends StatelessWidget {
   final VoidCallback? onMoreTap;
   final Playlist? playlist;
   final bool isFavourite;
+  final Widget? customIcon;
 
   const _SpotifyPlaylistTile({
     required this.thumbnail,
@@ -961,6 +944,7 @@ class _SpotifyPlaylistTile extends StatelessWidget {
     this.onMoreTap,
     this.playlist,
     this.isFavourite = false,
+    this.customIcon,
   });
 
   @override
@@ -1000,6 +984,17 @@ class _SpotifyPlaylistTile extends StatelessWidget {
   }
 
   Widget _buildThumbnail() {
+    if (customIcon != null) {
+      return Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A2A1A),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Center(child: customIcon!),
+      );
+    }
     if (isFavourite) {
       return Container(
         width: 56,

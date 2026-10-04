@@ -33,8 +33,14 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
+  # Network connectivity (Wi-Fi only gating for audio prefetch)
+  connectivity_plus: ^7.0.0
+
   # UI utilities
   cached_network_image: ^3.4.1
+  # Direct dep: used to configure the custom artwork CacheManager
+  # (already resolved transitively via cached_network_image).
+  flutter_cache_manager: ^3.4.1
   shimmer: ^3.0.0
   flutter_animate: ^4.5.0
   palette_generator: ^0.3.3+3

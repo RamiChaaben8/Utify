@@ -1,55 +1,25 @@
 // ============================================================
 // widgets/offline_indicator.dart
 //
-// A small banner that appears when the device has no network
-// access. Uses Firestore's snapshotMetadata.fromCache to detect
-// offline state — no extra connectivity package needed.
+// A small banner that appears when the device has no real
+// internet access. Driven by ConnectivityNotifier (which does
+// an actual HTTP reachability probe) and the manual offline
+// mode toggle.
 //
 // Wire this into the app shell as a Positioned top banner
 // (similar to RemotePlaybackBanner).
 // ============================================================
 
-import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../desktop/theme/desktop_theme.dart';
+import '../providers/connectivity_provider.dart';
 
-// ── Provider ──────────────────────────────────────────────────────────────────
-
-/// True when the last known network state is offline.
-/// Detected by listening to any Firestore snapshot and checking
-/// metadata.isFromCache AND !metadata.hasPendingWrites.
-final offlineProvider = StateProvider<bool>((ref) => false);
-
-// ── Controller — wire this up once in the app ─────────────────────────────────
-
-class OfflineDetector {
-  StreamSubscription? _sub;
-
-  void start(WidgetRef ref) {
-    // Use the settings document (always exists once profile is written)
-    // as a heartbeat to detect offline state. We listen to any document
-    // that we know Firestore will keep syncing.
-    _sub?.cancel();
-    _sub = FirebaseFirestore.instance
-        .collection('_ping') // doesn't need to exist
-        .snapshots(includeMetadataChanges: true)
-        .listen((snap) {
-      // fromCache = true AND hasPendingWrites = false → we're offline
-      final isOffline =
-          snap.metadata.isFromCache && !snap.metadata.hasPendingWrites;
-      ref.read(offlineProvider.notifier).state = isOffline;
-    }, onError: (_) {
-      ref.read(offlineProvider.notifier).state = true;
-    });
-  }
-
-  void stop() {
-    _sub?.cancel();
-  }
-}
+// ── Legacy shim — kept so existing usages of offlineProvider
+// in other files don't break until they are migrated.
+final offlineProvider = Provider<bool>((ref) {
+  return !ref.watch(isOnlineProvider);
+});
 
 // ── Widget ────────────────────────────────────────────────────────────────────
 
@@ -58,13 +28,15 @@ class OfflineIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isOffline = ref.watch(offlineProvider);
+    final connectivity = ref.watch(connectivityProvider);
+    final isOffline = !connectivity.isOnline || connectivity.offlineModeEnabled;
     if (!isOffline) return const SizedBox.shrink();
+
     final theme = AppThemeScope.maybeOf(context);
-    // Being offline is a warning, not an error — this used to borrow
-    // notificationError, which is red in Green/Verdant and amber in Red, so
-    // the same banner meant two different things across themes.
     final warning = theme?.warning ?? Colors.orange;
+    final label = connectivity.offlineModeEnabled && connectivity.isOnline
+        ? 'Offline mode — tap to go online'
+        : 'Offline — changes will sync when reconnected';
 
     return Material(
       color: theme?.main.withValues(alpha: 0) ?? Colors.transparent,
@@ -76,16 +48,23 @@ class OfflineIndicator extends ConsumerWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: warning.withValues(alpha: 0.4)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.wifi_off, color: warning, size: 16),
-            SizedBox(width: 8),
-            Text(
-              'Offline — changes will sync when reconnected',
-              style: TextStyle(color: warning, fontSize: 12),
-            ),
-          ],
+        child: GestureDetector(
+          onTap: connectivity.offlineModeEnabled
+              ? () => ref
+                  .read(connectivityProvider.notifier)
+                  .setOfflineMode(false)
+              : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.wifi_off, color: warning, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(color: warning, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );

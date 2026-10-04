@@ -14,7 +14,6 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../desktop/theme/desktop_theme.dart';
@@ -22,6 +21,7 @@ import '../models/song.dart';
 import '../models/playlist.dart';
 import '../providers/download_provider.dart';
 import '../providers/youtube_provider.dart';
+import 'app_thumbnail.dart';
 import 'song_context_menu.dart';
 
 class SongTile extends ConsumerWidget {
@@ -172,7 +172,7 @@ class SongTile extends ConsumerWidget {
 
   Widget _thumbnail(BuildContext context) {
     final theme = context.appTheme;
-    if (song.isLocal || song.thumbnailUrl.isEmpty) {
+    if (song.isLocal) {
       return SizedBox(
         width: 52,
         height: 52,
@@ -184,17 +184,15 @@ class SongTile extends ConsumerWidget {
         ),
       );
     }
-    return SizedBox(
+    return AppThumbnail(
+      imageUrl: song.thumbnailUrl,
+      videoId: song.id,
       width: 52,
       height: 52,
-      child: CachedNetworkImage(
-        imageUrl: song.thumbnailUrl,
-        width: 52,
-        height: 52,
-        fit: BoxFit.cover,
-        placeholder: (_, __) => _placeholder(context),
-        errorWidget: (_, __, ___) => _placeholder(context),
-      ),
+      borderRadius: 4,
+      backgroundColor: theme.card,
+      placeholder: _placeholder(context),
+      errorWidget: _placeholder(context),
     );
   }
 

@@ -5,10 +5,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:hive/hive.dart';
+
 import '../models/song.dart';
 import '../services/youtube_service.dart' show LyricLine;
 
 const String _kBase = 'https://lrclib.net/api';
+const String _kLrcLibBox = 'lrclib_lyrics';
 
 // ── Strip common YouTube title noise ─────────────────────────────────────────
 
@@ -141,8 +144,16 @@ class LrclibService {
   ///   2. /get with title + cleaned artist (no duration — mismatch is common)
   ///   3. /search fallback with "title artist" query
   Future<List<LyricLine>> fetchForSong(Song song) async {
+    // 0. Cache lookup (videoId keyed)
+    if (song.id.isNotEmpty) {
+      final cached = await _readCachedLyrics(song.id);
+      if (cached != null) return cached;
+    }
+
     final cleanTitle = _cleanYouTubeTitle(song.title);
     final artist     = _cleanArtistName(song.channelName);
+
+    List<LyricLine> resultLines = [];
 
     // ── Attempt 1: title + artist + duration ─────────────────────────────
     final params = <String, String>{
@@ -155,8 +166,11 @@ class LrclibService {
 
     final data = await _get('$_kBase/get?${_buildQuery(params)}');
     if (data != null) {
-      final result = _extractFromMap(data);
-      if (result.isNotEmpty) return result;
+      resultLines = _extractFromMap(data);
+      if (resultLines.isNotEmpty) {
+        if (song.id.isNotEmpty) await _writeCachedLyrics(song.id, resultLines);
+        return resultLines;
+      }
     }
 
     // ── Attempt 2: title + artist WITHOUT duration ────────────────────────
@@ -168,13 +182,20 @@ class LrclibService {
       };
       final data2 = await _get('$_kBase/get?${_buildQuery(paramsNoDur)}');
       if (data2 != null) {
-        final result = _extractFromMap(data2);
-        if (result.isNotEmpty) return result;
+        resultLines = _extractFromMap(data2);
+        if (resultLines.isNotEmpty) {
+          if (song.id.isNotEmpty) await _writeCachedLyrics(song.id, resultLines);
+          return resultLines;
+        }
       }
     }
 
     // ── Attempt 3: /search fallback ───────────────────────────────────────
-    return _searchFallback(cleanTitle, artist);
+    resultLines = await _searchFallback(cleanTitle, artist);
+    if (song.id.isNotEmpty) {
+      await _writeCachedLyrics(song.id, resultLines);
+    }
+    return resultLines;
   }
 
   List<LyricLine> _extractFromMap(Map<String, dynamic> data) {
@@ -197,6 +218,62 @@ class LrclibService {
     if (lines.isEmpty) return false;
     return lines.any((l) => l.start != Duration.zero);
   }
+
+  /// Reads cached lyrics for [videoId].
+///
+/// Returns:
+/// - a list of lines if we have them cached
+/// - an empty list if there's a negative cache entry ("no lyrics")
+/// - null if there's no cached entry at all
+Future<List<LyricLine>?> _readCachedLyrics(String videoId) async {
+  try {
+    final box = Hive.box(_kLrcLibBox);
+    final record = box.get(videoId);
+    if (record is! Map) return null;
+    final type = record['type'];
+    if (type == 'none') {
+      // Negative cache: we already tried and found nothing.
+      return const <LyricLine>[];
+    }
+    final syncedStr = record['synced'];
+    final plainStr = record['plain'];
+    if (syncedStr is String && syncedStr.isNotEmpty) {
+      final parsed = _parseLrc(syncedStr);
+      if (parsed.isNotEmpty) return parsed;
+    }
+    if (plainStr is String && plainStr.isNotEmpty) {
+      final parsed = _parsePlain(plainStr);
+      if (parsed.isNotEmpty) return parsed;
+    }
+  } catch (_) {
+    // Cache read failures must not block playback.
+  }
+  return null;
+}
+
+Future<void> _writeCachedLyrics(String videoId, List<LyricLine> lines) async {
+  try {
+    final box = Hive.box(_kLrcLibBox);
+    if (lines.isEmpty) {
+      // Cache the negative result so repeated hits do not hit the network.
+      await box.put(videoId, {'type': 'none'});
+      return;
+    }
+    final isSynced = hasSyncedLyrics(lines);
+    String? syncedStr;
+    if (isSynced) {
+      syncedStr = lines.map((l) => '[${l.start.inMilliseconds}]${l.text}').join('\n');
+    }
+    final plainStr = lines.map((l) => l.text).join('\n');
+    await box.put(videoId, {
+      'type': isSynced ? 'synced' : 'plain',
+      if (syncedStr != null) 'synced': syncedStr,
+      'plain': plainStr,
+    });
+  } catch (_) {
+    // Cache write failures are best-effort.
+  }
+}
 
   String _buildQuery(Map<String, String> params) {
     return params.entries

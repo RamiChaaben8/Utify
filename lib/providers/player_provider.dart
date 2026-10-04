@@ -571,11 +571,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     Playlist? sourcePlaylist,
     bool suppressRemoteCommand = false,
   }) {
-    // If this device is passive, claim it first.
     if (!state.isActiveDevice) {
-      // Cloud device handoff must not block local playback. Firestore can be
-      // slow or unavailable on desktop; start the song now and sync the claim
-      // in the background so a tap never degrades into a visual-only button.
       state = state.copyWith(isActiveDevice: true);
       unawaited(_sync.service.claimAsActiveDevice().catchError((_) {}));
     }
@@ -585,6 +581,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       sourcePlaylist: sourcePlaylist,
       suppressRemoteCommand: suppressRemoteCommand,
     );
+  }
+
+  /// Play a song from the local download index.
+  /// Builds a minimal Song from the DownloadIndexEntry and plays it.
+  /// The audio player will resolve the local file via DownloadIndexService.
+  void playSongFromDownload(dynamic entry) {
+    // entry is DownloadIndexEntry — import kept separate to avoid circular deps.
+    // We access it via dynamic to keep player_provider free of download_index dep.
+    final song = Song(
+      id:           entry.videoId as String,
+      title:        (entry.title as String).isNotEmpty
+                      ? entry.title as String
+                      : entry.videoId as String,
+      channelName:  entry.artist as String,
+      thumbnailUrl: '',
+      duration:     Duration(milliseconds: entry.durationMs as int),
+    );
+    playSong(song);
   }
 
   void _doPlaySong(

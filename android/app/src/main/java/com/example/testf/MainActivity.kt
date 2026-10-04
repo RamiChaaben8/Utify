@@ -18,11 +18,12 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
 
     companion object {
-        const val CHANNEL        = "com.example.testf/marquee"
-        const val LIFECYCLE_CHANNEL = "com.example.testf/lifecycle"
-        const val PERM_CHANNEL   = "com.example.testf/permissions"
-        const val PERM_REQ_CODE  = 1001
-        const val UPDATE_CHANNEL = "com.example.testf/app_update"
+        const val CHANNEL             = "com.example.testf/marquee"
+        const val LIFECYCLE_CHANNEL   = "com.example.testf/lifecycle"
+        const val PERM_CHANNEL        = "com.example.testf/permissions"
+        const val PERM_REQ_CODE       = 1001
+        const val UPDATE_CHANNEL      = "com.example.testf/app_update"
+        const val MEDIASTORE_CHANNEL  = "com.example.testf/mediastore"
     }
 
     private lateinit var marquee: MarqueeNotificationHelper
@@ -101,6 +102,30 @@ class MainActivity : AudioServiceActivity() {
                             result.error("INSTALLER_FAILED", e.message, null)
                         }
                     }
+                }
+            }
+        }
+
+        // ── MediaStore channel (audio insertion for API 29+) ─────────────
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "insertAudioFromFile" -> {
+                        val basename  = call.argument<String>("basename") ?: ""
+                        val extension = call.argument<String>("extension") ?: "m4a"
+                        val tempPath  = call.argument<String>("tempPath")  ?: ""
+                        val tempFile  = java.io.File(tempPath)
+                        val uri = MediaStoreHelper.insertFromFile(
+                            applicationContext, basename, extension, tempFile
+                        )
+                        if (uri != null) result.success(uri)
+                        else result.error("MEDIASTORE_FAILED", "Could not insert audio", null)
+                    }
+                    "uriExists" -> {
+                        val uri = call.argument<String>("uri") ?: ""
+                        result.success(MediaStoreHelper.uriExists(applicationContext, uri))
+                    }
+                    else -> result.notImplemented()
                 }
             }
     }

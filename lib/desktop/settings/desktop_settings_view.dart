@@ -29,11 +29,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/presence_provider.dart';
 import '../../providers/sync_provider.dart';
+import '../../providers/download_provider.dart';
+import '../../providers/connectivity_provider.dart';
 import '../theme/desktop_theme.dart';
+
 
 /// Left-rail categories. [profile] and [privacy] need a signed-in user;
 /// [appearance] does not, so it stays reachable in guest mode.
-enum SettingsSection { profile, privacy, appearance }
+enum SettingsSection { profile, privacy, appearance, downloads }
+
 
 class DesktopSettingsView extends ConsumerStatefulWidget {
   /// Which category opens first. Set by the account menu entry that was
@@ -119,6 +123,13 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                   onTap: () =>
                       setState(() => _section = SettingsSection.appearance),
                 ),
+                _RailItem(
+                  icon: Icons.cloud_download_outlined,
+                  label: 'Downloads',
+                  selected: _section == SettingsSection.downloads,
+                  onTap: () =>
+                      setState(() => _section = SettingsSection.downloads),
+                ),
               ],
             ),
           ),
@@ -132,8 +143,6 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
           // ── Content ──────────────────────────────────────────────
           Expanded(
             child: DecoratedBox(
-              // Same surface the other centre views use, so the settings page
-              // reads as "a view" rather than a differently-shaped dialog.
               decoration: BoxDecoration(color: theme.panelSurfaceColor),
               child: switch (_section) {
                 SettingsSection.profile => user == null
@@ -143,9 +152,11 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                     ? const _SignedOutNotice(category: 'Privacy')
                     : _PrivacySection(uid: user.uid),
                 SettingsSection.appearance => const _AppearanceSection(),
+                SettingsSection.downloads => const _DownloadsSection(),
               },
             ),
           ),
+
         ],
       ),
     );
@@ -957,6 +968,150 @@ class _Swatch extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: context.appTheme.dividerColor),
       ),
+    );
+  }
+}
+
+// ─── Downloads settings section ──────────────────────────────────────────────
+
+class _DownloadsSection extends ConsumerWidget {
+  const _DownloadsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dl           = ref.watch(downloadProvider);
+    final notifier     = ref.read(downloadProvider.notifier);
+    final connectivity = ref.watch(connectivityProvider);
+
+    final downloadQuality  = notifier.downloadQuality;
+    final downloadOnMobile = notifier.downloadOnMobile;
+
+    final totalMB = dl.totalSizeBytes / 1024 / 1024;
+    final totalStr = totalMB >= 1024
+        ? '${(totalMB / 1024).toStringAsFixed(1)} GB'
+        : '${totalMB.toStringAsFixed(0)} MB';
+
+
+    return ListView(
+      padding: const EdgeInsets.all(32),
+      children: [
+        const Text(
+          'Downloads',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Download quality
+        const Text('Download quality',
+            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const SizedBox(height: 8),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(value: 'best', label: Text('Best available')),
+            ButtonSegment(value: 'compatible', label: Text('Compatible (m4a)')),
+          ],
+          selected: {downloadQuality},
+          onSelectionChanged: (s) => notifier.setDownloadQuality(s.first),
+          style: SegmentedButton.styleFrom(
+            foregroundColor: Colors.white,
+            selectedForegroundColor: Colors.black,
+            selectedBackgroundColor: const Color(0xFF1DB954),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          downloadQuality == 'compatible'
+              ? 'Only download m4a/AAC streams. May skip songs with no m4a stream.'
+              : 'Download the highest bitrate stream in its original container.',
+          style: const TextStyle(color: Colors.white38, fontSize: 11),
+        ),
+        const SizedBox(height: 24),
+
+        // Download on mobile data
+        SwitchListTile(
+          value: downloadOnMobile,
+
+          onChanged: (v) => notifier.setDownloadOnMobile(v),
+          title: const Text('Download on mobile data',
+              style: TextStyle(color: Colors.white)),
+          subtitle: const Text('Off: Wi-Fi only  ·  On: allows mobile data',
+              style: TextStyle(color: Colors.white38, fontSize: 12)),
+          activeColor: const Color(0xFF1DB954),
+          contentPadding: EdgeInsets.zero,
+        ),
+        const SizedBox(height: 8),
+
+        // Offline mode toggle
+        SwitchListTile(
+          value: connectivity.offlineModeEnabled,
+          onChanged: (v) =>
+              ref.read(connectivityProvider.notifier).setOfflineMode(v),
+          title: const Text('Offline mode',
+              style: TextStyle(color: Colors.white)),
+          subtitle: const Text(
+              'Force offline behaviour even when connected.',
+              style: TextStyle(color: Colors.white38, fontSize: 12)),
+          activeColor: const Color(0xFF1DB954),
+          contentPadding: EdgeInsets.zero,
+        ),
+        const Divider(color: Colors.white12, height: 32),
+
+        // Storage usage
+        Row(
+          children: [
+            const Icon(Icons.storage, color: Colors.white38, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              '${dl.downloaded.length} songs · $totalStr used',
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Remove all downloads
+        OutlinedButton.icon(
+          onPressed: dl.downloaded.isEmpty
+              ? null
+              : () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      backgroundColor: const Color(0xFF1E1E1E),
+                      title: const Text('Remove all downloads?'),
+                      content: const Text(
+                        'All downloaded files will be deleted.',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Remove all',
+                              style: TextStyle(color: Colors.redAccent)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await notifier.deleteAllDownloads();
+                  }
+                },
+          icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+          label: const Text('Remove all downloads',
+              style: TextStyle(color: Colors.redAccent)),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Colors.redAccent),
+          ),
+        ),
+      ],
     );
   }
 }
