@@ -23,7 +23,7 @@
 //
 // Platform behaviour
 // ────────────────────────────────────────────────────────────
-// • Windows: audio + .jpg thumbnail in %USERPROFILE%\Music\Utify\.
+// • Windows: audio + .jpg thumbnail in %USERPROFILE%\Documents\Utify\.
 // • Android API 29+: audio via MediaStore (no broad storage perm).
 //   Thumbnails in app-private storage (not in Gallery).
 // • Android API 28-: direct file write.

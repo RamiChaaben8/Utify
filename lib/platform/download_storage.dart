@@ -3,7 +3,7 @@
 //
 // Platform abstraction for user-initiated download storage.
 //
-// Windows: %USERPROFILE%\Music\Utify\
+// Windows: %USERPROFILE%\Documents\Utify\
 //   • Audio file + .jpg thumbnail saved in the same folder.
 //
 // Android API 29+ (Q+): MediaStore insertions for audio.
@@ -56,7 +56,7 @@ class DownloadStorageResult {
 ///
 /// On Android this is the app-external path (used for API 28 direct writes
 /// and for thumbnail storage on all API levels).
-/// On Windows it is %USERPROFILE%\Music\Utify\.
+/// On Windows it is %USERPROFILE%\Documents\Utify\.
 Future<Directory> getDownloadDirectory() async {
   if (Platform.isWindows) {
     return _windowsDownloadDir();
@@ -66,7 +66,7 @@ Future<Directory> getDownloadDirectory() async {
   }
   // Fallback for other platforms.
   final docs = await getApplicationDocumentsDirectory();
-  final dir = Directory('${docs.path}/Music/Utify');
+  final dir = Directory('${docs.path}/Utify');
   if (!await dir.exists()) await dir.create(recursive: true);
   return dir;
 }
@@ -123,7 +123,7 @@ Future<DownloadStorageResult> saveDownloadedAudio({
   final dir = await _windowsDownloadDir();
   final audioFile = File('${dir.path}\\$basename.$extension');
   await audioFile.writeAsBytes(bytes, flush: true);
-  // Thumbnail is also in the same Music/Utify folder on Windows.
+  // Thumbnail is also in the same Documents/Utify folder on Windows.
   final thumbnailPath = '${dir.path}\\$basename.jpg';
   return DownloadStorageResult(
     audioPath: audioFile.path,
@@ -133,7 +133,7 @@ Future<DownloadStorageResult> saveDownloadedAudio({
 
 /// Returns the path where the thumbnail for [basename] should be saved.
 /// On Android this is always a private app-data path (never in Gallery).
-/// On Windows it is next to the audio in Music/Utify.
+/// On Windows it is next to the audio in Documents/Utify.
 Future<String> thumbnailPathFor({
   required String basename,
   required bool isAndroid,
@@ -150,8 +150,8 @@ Future<String> thumbnailPathFor({
 Future<Directory> _windowsDownloadDir() async {
   final userProfile = Platform.environment['USERPROFILE'];
   final path = userProfile != null
-      ? '$userProfile\\Music\\Utify'
-      : '${(await getApplicationDocumentsDirectory()).path}\\Music\\Utify';
+      ? '$userProfile\\Documents\\Utify'
+      : '${(await getApplicationDocumentsDirectory()).path}\\Utify';
   final dir = Directory(path);
   if (!await dir.exists()) await dir.create(recursive: true);
   return dir;

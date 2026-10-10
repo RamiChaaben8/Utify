@@ -39,8 +39,9 @@ class DownloadsView extends ConsumerWidget {
         .toList();
 
     final done = dl.downloaded;
+    final downloadedSongs = dl.downloadedSongs;
 
-    final totalMB  = dl.totalSizeBytes / 1024 / 1024;
+    final totalMB = dl.totalSizeBytes / 1024 / 1024;
     final totalStr = totalMB >= 1024
         ? '${(totalMB / 1024).toStringAsFixed(1)} GB'
         : '${totalMB.toStringAsFixed(0)} MB';
@@ -67,16 +68,13 @@ class DownloadsView extends ConsumerWidget {
                   onPressed: () async {
                     final confirm = await _confirmRemoveAll(context);
                     if (confirm) {
-                      ref
-                          .read(downloadProvider.notifier)
-                          .deleteAllDownloads();
+                      ref.read(downloadProvider.notifier).deleteAllDownloads();
                     }
                   },
                   icon: const Icon(Icons.delete_outline,
                       color: Colors.redAccent, size: 16),
                   label: const Text('Remove all',
-                      style: TextStyle(
-                          color: Colors.redAccent, fontSize: 12)),
+                      style: TextStyle(color: Colors.redAccent, fontSize: 12)),
                 ),
             ],
           ),
@@ -92,11 +90,24 @@ class DownloadsView extends ConsumerWidget {
                     '${done.length} songs · $totalStr',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white38, fontSize: 12),
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ),
               ],
+            ),
+          ),
+        if (done.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: FilledButton.icon(
+              onPressed: () {
+                ref.read(playerProvider.notifier).playSong(
+                      downloadedSongs.first,
+                      queue: downloadedSongs,
+                    );
+              },
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Play all downloads'),
             ),
           ),
         Expanded(
@@ -112,8 +123,7 @@ class DownloadsView extends ConsumerWidget {
                       ),
                     ],
                     if (failed.isNotEmpty) ...[
-                      _sectionHeader('FAILED',
-                          color: Colors.redAccent),
+                      _sectionHeader('FAILED', color: Colors.redAccent),
                       ...failed.map(
                         (t) => _DesktopFailedTile(task: t, ref: ref),
                       ),
@@ -131,8 +141,7 @@ class DownloadsView extends ConsumerWidget {
     );
   }
 
-  static Widget _sectionHeader(String text,
-      {Color color = Colors.white38}) {
+  static Widget _sectionHeader(String text, {Color color = Colors.white38}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Text(
@@ -179,7 +188,7 @@ class DownloadsView extends ConsumerWidget {
 
 class _DesktopActiveTile extends StatelessWidget {
   final DownloadTask task;
-  final WidgetRef    ref;
+  final WidgetRef ref;
 
   const _DesktopActiveTile({required this.task, required this.ref});
 
@@ -191,8 +200,7 @@ class _DesktopActiveTile extends StatelessWidget {
       child: ListTile(
         tileColor: Colors.transparent,
         dense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         title: Text(
           song.title,
           maxLines: 1,
@@ -214,32 +222,34 @@ class _DesktopActiveTile extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '${(task.progress * 100).round()}%',
-                    style: const TextStyle(
-                        color: Colors.white38, fontSize: 11),
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
                   ),
                 ],
               )
             : Text(
-                task.status == DownloadStatus.paused
-                    ? 'Paused'
-                    : 'Queued',
-                style: const TextStyle(
-                    color: Colors.white38, fontSize: 11),
+                task.status == DownloadStatus.paused ? 'Paused' : 'Queued',
+                style: const TextStyle(color: Colors.white38, fontSize: 11),
               ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (task.status == DownloadStatus.downloading)
-              _iconBtn(Icons.pause, () => ref
-                  .read(downloadProvider.notifier)
-                  .pauseDownload(song.id))
+              _iconBtn(
+                  Icons.pause,
+                  () => ref
+                      .read(downloadProvider.notifier)
+                      .pauseDownload(song.id))
             else if (task.status == DownloadStatus.paused)
-              _iconBtn(Icons.play_arrow, () => ref
-                  .read(downloadProvider.notifier)
-                  .resumeDownload(song.id)),
-            _iconBtn(Icons.close, () => ref
-                .read(downloadProvider.notifier)
-                .cancelDownload(song.id)),
+              _iconBtn(
+                  Icons.play_arrow,
+                  () => ref
+                      .read(downloadProvider.notifier)
+                      .resumeDownload(song.id)),
+            _iconBtn(
+                Icons.close,
+                () => ref
+                    .read(downloadProvider.notifier)
+                    .cancelDownload(song.id)),
           ],
         ),
       ),
@@ -250,8 +260,7 @@ class _DesktopActiveTile extends StatelessWidget {
         icon: Icon(icon, size: 16, color: Colors.white38),
         onPressed: onTap,
         padding: EdgeInsets.zero,
-        constraints:
-            const BoxConstraints(minWidth: 28, minHeight: 28),
+        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
       );
 }
 
@@ -259,13 +268,13 @@ class _DesktopActiveTile extends StatelessWidget {
 
 class _DesktopFailedTile extends StatelessWidget {
   final DownloadTask task;
-  final WidgetRef    ref;
+  final WidgetRef ref;
 
   const _DesktopFailedTile({required this.task, required this.ref});
 
   @override
   Widget build(BuildContext context) {
-    final song     = task.song;
+    final song = task.song;
     final errorMsg = task.error ?? 'Unknown error';
 
     return Material(
@@ -273,38 +282,35 @@ class _DesktopFailedTile extends StatelessWidget {
       child: ListTile(
         tileColor: Colors.transparent,
         dense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        leading: const Icon(Icons.error_outline,
-            color: Colors.redAccent, size: 20),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        leading:
+            const Icon(Icons.error_outline, color: Colors.redAccent, size: 20),
         title: Text(
           song.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-              color: Colors.redAccent, fontSize: 13),
+          style: const TextStyle(color: Colors.redAccent, fontSize: 13),
         ),
         subtitle: Text(
           errorMsg,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-              color: Colors.redAccent, fontSize: 11),
+          style: const TextStyle(color: Colors.redAccent, fontSize: 11),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextButton(
-              onPressed: () => ref
-                  .read(downloadProvider.notifier)
-                  .retryDownload(song.id),
+              onPressed: () =>
+                  ref.read(downloadProvider.notifier).retryDownload(song.id),
               child: const Text('Retry',
-                  style: TextStyle(
-                      color: Color(0xFF1DB954), fontSize: 12)),
+                  style: TextStyle(color: Color(0xFF1DB954), fontSize: 12)),
             ),
-            _iconBtn(Icons.close, () => ref
-                .read(downloadProvider.notifier)
-                .cancelDownload(song.id)),
+            _iconBtn(
+                Icons.close,
+                () => ref
+                    .read(downloadProvider.notifier)
+                    .cancelDownload(song.id)),
           ],
         ),
       ),
@@ -315,8 +321,7 @@ class _DesktopFailedTile extends StatelessWidget {
         icon: Icon(icon, size: 16, color: Colors.white38),
         onPressed: onTap,
         padding: EdgeInsets.zero,
-        constraints:
-            const BoxConstraints(minWidth: 28, minHeight: 28),
+        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
       );
 }
 
@@ -324,34 +329,31 @@ class _DesktopFailedTile extends StatelessWidget {
 
 class _DesktopDoneTile extends StatelessWidget {
   final DownloadIndexEntry entry;
-  final WidgetRef          ref;
+  final WidgetRef ref;
 
   const _DesktopDoneTile({required this.entry, required this.ref});
 
   @override
   Widget build(BuildContext context) {
-    final sizeMB   = entry.sizeBytes / 1024 / 1024;
+    final sizeMB = entry.sizeBytes / 1024 / 1024;
     final subtitle = [
       if (entry.artist.isNotEmpty) entry.artist,
       if (sizeMB > 0.1) '${sizeMB.toStringAsFixed(1)} MB',
       entry.format.toUpperCase(),
     ].join(' · ');
 
-    final thumbFile = entry.thumbnailPath.isNotEmpty
-        ? File(entry.thumbnailPath)
-        : null;
+    final thumbFile =
+        entry.thumbnailPath.isNotEmpty ? File(entry.thumbnailPath) : null;
 
     // hqdefault as network fallback — never maxresdefault.
-    final fallbackThumb =
-        ThumbnailUrl.videoFallbacks(entry.videoId).first;
+    final fallbackThumb = ThumbnailUrl.videoFallbacks(entry.videoId).first;
 
     return Material(
       color: Colors.transparent,
       child: ListTile(
         tileColor: Colors.transparent,
         dense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         leading: thumbFile != null && thumbFile.existsSync()
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(3),
@@ -397,14 +399,12 @@ class _DesktopDoneTile extends StatelessWidget {
                 color: Color(0xFF1DB954), size: 14),
             const SizedBox(width: 4),
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_horiz,
-                  color: Colors.white24, size: 16),
+              icon:
+                  const Icon(Icons.more_horiz, color: Colors.white24, size: 16),
               padding: EdgeInsets.zero,
               onSelected: (v) {
                 if (v == 'remove') {
-                  ref
-                      .read(downloadProvider.notifier)
-                      .deleteSong(entry.videoId);
+                  ref.read(downloadProvider.notifier).deleteSong(entry.videoId);
                 }
               },
               itemBuilder: (_) => const [
@@ -419,9 +419,9 @@ class _DesktopDoneTile extends StatelessWidget {
             ),
           ],
         ),
-        onTap: () => ref
-            .read(playerProvider.notifier)
-            .playSongFromDownload(entry),
+        onTap: () => ref.read(playerProvider.notifier).playSongFromDownload(
+            entry,
+            queue: ref.read(downloadProvider).downloadedSongs),
       ),
     );
   }

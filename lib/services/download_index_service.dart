@@ -7,12 +7,12 @@
 // ─────────────────────────────────────────────────────────────
 // 1. CRUD on DownloadIndexEntry objects.
 // 2. Startup tasks (called once at boot, all non-blocking):
-//    a) Clean up leftover .part files in Music/Utify.
+//    a) Clean up leftover .part files in Documents/Utify on desktop.
 //    b) Verify every indexed entry still exists on disk/MediaStore;
 //       remove dead entries.
 //    c) Migrate old 'downloaded_songs' Hive entries (path-only map)
 //       to DownloadIndexEntry objects.
-//    d) Scan Music/Utify for files with "[videoId]" in their name
+//    d) Scan the desktop download folder for files with "[videoId]" in their name
 //       that are NOT yet indexed, and re-import them (reinstall
 //       recovery).
 //
@@ -34,12 +34,11 @@ import 'package:path_provider/path_provider.dart';
 import '../models/download_index.dart';
 import '../platform/download_storage.dart';
 
-const String kDownloadIndexBox  = 'download_index';
-const String _kLegacyBox        = 'downloaded_songs';
+const String kDownloadIndexBox = 'download_index';
+const String _kLegacyBox = 'downloaded_songs';
 
 /// Exposed so main.dart can open the legacy box before migration.
 const String kLegacyDownloadBox = 'downloaded_songs';
-
 
 // ── Regex: "[<videoId>]" somewhere in the filename ──────────────────────────
 final _videoIdInName = RegExp(r'\[([A-Za-z0-9_-]{11})\]');
@@ -61,8 +60,7 @@ class DownloadIndexService {
 
   bool isDownloaded(String videoId) => _box?.containsKey(videoId) ?? false;
 
-  List<DownloadIndexEntry> getAll() =>
-      _box?.values.toList() ?? const [];
+  List<DownloadIndexEntry> getAll() => _box?.values.toList() ?? const [];
 
   int get totalSizeBytes =>
       _box?.values.fold<int>(0, (sum, e) => sum + e.sizeBytes) ?? 0;
@@ -97,7 +95,8 @@ class DownloadIndexService {
   Future<void> removePlaylistId(String videoId, String playlistId) async {
     final entry = get(videoId);
     if (entry == null) return;
-    entry.playlistIds = entry.playlistIds.where((id) => id != playlistId).toList();
+    entry.playlistIds =
+        entry.playlistIds.where((id) => id != playlistId).toList();
     await put(entry);
   }
 
@@ -188,7 +187,7 @@ class DownloadIndexService {
     if (box == null) return;
 
     var migrated = 0;
-    var skipped  = 0;
+    var skipped = 0;
 
     for (final rawKey in legacy.keys.toList()) {
       final key = rawKey?.toString() ?? '';
@@ -217,7 +216,10 @@ class DownloadIndexService {
           continue;
         }
         final path = rawValue;
-        if (path.isEmpty) { skipped++; continue; }
+        if (path.isEmpty) {
+          skipped++;
+          continue;
+        }
 
         // Skip if already in the new index.
         if (box.containsKey(key)) continue;
@@ -225,28 +227,32 @@ class DownloadIndexService {
         // Skip if the file no longer exists on disk (nothing to migrate).
         if (!await File(path).exists()) {
           if (kDebugMode) {
-            debugPrint('[DownloadIndex] migrate: skip "$key" — file not found: $path');
+            debugPrint(
+                '[DownloadIndex] migrate: skip "$key" — file not found: $path');
           }
           skipped++;
           continue;
         }
 
         // Try to derive videoId from the filename "[videoId]" pattern.
-        final match   = _videoIdInName.firstMatch(path);
+        final match = _videoIdInName.firstMatch(path);
         final videoId = match?.group(1) ?? key;
 
         // Determine format from extension.
-        final ext    = path.split('.').last.toLowerCase();
-        final format = const {'m4a', 'webm', 'mp4', 'mp3'}.contains(ext) ? ext : 'mp4';
+        final ext = path.split('.').last.toLowerCase();
+        final format =
+            const {'m4a', 'webm', 'mp4', 'mp3'}.contains(ext) ? ext : 'mp4';
 
         int sizeBytes = 0;
-        try { sizeBytes = await File(path).length(); } catch (_) {}
+        try {
+          sizeBytes = await File(path).length();
+        } catch (_) {}
 
         final entry = DownloadIndexEntry(
-          videoId:      videoId,
-          path:         path,
-          format:       format,
-          sizeBytes:    sizeBytes,
+          videoId: videoId,
+          path: path,
+          format: format,
+          sizeBytes: sizeBytes,
           downloadedAt: DateTime.now(),
         );
         await box.put(videoId, entry);
@@ -289,30 +295,34 @@ class DownloadIndexService {
 
       // Re-import it.
       final ext = filename.split('.').last.toLowerCase();
-      final format = const {'m4a', 'webm', 'mp4', 'mp3'}.contains(ext) ? ext : 'mp4';
+      final format =
+          const {'m4a', 'webm', 'mp4', 'mp3'}.contains(ext) ? ext : 'mp4';
       int sizeBytes = 0;
-      try { sizeBytes = await entity.length(); } catch (_) {}
+      try {
+        sizeBytes = await entity.length();
+      } catch (_) {}
 
       // Try to parse "{Artist} - {Title} [{videoId}].{ext}".
       String artist = '';
-      String title  = '';
+      String title = '';
       final noExt = filename.substring(0, filename.lastIndexOf('.'));
-      final noId  = noExt.replaceAll(RegExp(r'\s*\[[A-Za-z0-9_-]{11}\]\s*$'), '');
-      final dash  = noId.indexOf(' - ');
+      final noId =
+          noExt.replaceAll(RegExp(r'\s*\[[A-Za-z0-9_-]{11}\]\s*$'), '');
+      final dash = noId.indexOf(' - ');
       if (dash > 0) {
         artist = noId.substring(0, dash).trim();
-        title  = noId.substring(dash + 3).trim();
+        title = noId.substring(dash + 3).trim();
       } else {
         title = noId.trim();
       }
 
       final entry = DownloadIndexEntry(
-        videoId:     videoId,
-        path:        entity.path,
-        format:      format,
-        sizeBytes:   sizeBytes,
-        title:       title,
-        artist:      artist,
+        videoId: videoId,
+        path: entity.path,
+        format: format,
+        sizeBytes: sizeBytes,
+        title: title,
+        artist: artist,
         downloadedAt: DateTime.now(),
       );
       await box.put(videoId, entry);
@@ -320,7 +330,8 @@ class DownloadIndexService {
     }
 
     if (imported > 0 && kDebugMode) {
-      debugPrint('[DownloadIndex] re-imported $imported file(s) from Music/Utify');
+      debugPrint(
+          '[DownloadIndex] re-imported $imported file(s) from desktop downloads');
     }
   }
 
@@ -338,17 +349,17 @@ class DownloadIndexService {
     }
   }
 
-  /// Returns the Music/Utify directory if it can be determined without
+  /// Returns the desktop Documents/Utify directory if it can be determined without
   /// triggering a permission prompt.  Returns null if unavailable.
   Future<Directory?> _musicUtifyDir() async {
     try {
       if (Platform.isWindows) {
         final userProfile = Platform.environment['USERPROFILE'];
         if (userProfile != null) {
-          return Directory('$userProfile\\Music\\Utify');
+          return Directory('$userProfile\\Documents\\Utify');
         }
         final docs = await getApplicationDocumentsDirectory();
-        return Directory('${docs.path}\\Music\\Utify');
+        return Directory('${docs.path}\\Utify');
       }
       if (Platform.isAndroid) {
         // Use the same traversal as DownloadStorage.

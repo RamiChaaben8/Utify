@@ -33,6 +33,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../models/song.dart';
 import '../models/playlist.dart';
+import '../models/download_index.dart';
 import '../services/audio_handler.dart';
 import '../services/audio_player_service.dart';
 import '../services/youtube_service.dart';
@@ -152,6 +153,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _handler.onSkipToNext = () => skipToNext();
     _handler.onSkipToPrevious = () => skipToPrevious();
     _handler.onSeek = (pos) => seek(pos);
+    _handler.onToggleLike = _toggleCurrentSongLike;
+  }
+
+  Future<void> _toggleCurrentSongLike() async {
+    final song = state.currentSong ?? _service.currentSong;
+    if (song == null) return;
+    await _library.toggleLike(song);
   }
 
   // ── Internal stream subscriptions ────────────────────────────────────────
@@ -579,19 +587,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// Play a song from the local download index.
   /// Builds a minimal Song from the DownloadIndexEntry and plays it.
   /// The audio player will resolve the local file via DownloadIndexService.
-  void playSongFromDownload(dynamic entry) {
-    // entry is DownloadIndexEntry — import kept separate to avoid circular deps.
-    // We access it via dynamic to keep player_provider free of download_index dep.
+  void playSongFromDownload(
+    DownloadIndexEntry entry, {
+    List<Song>? queue,
+  }) {
     final song = Song(
-      id:           entry.videoId as String,
-      title:        (entry.title as String).isNotEmpty
-                      ? entry.title as String
-                      : entry.videoId as String,
-      channelName:  entry.artist as String,
-      thumbnailUrl: '',
-      duration:     Duration(milliseconds: entry.durationMs as int),
+      id: entry.videoId,
+      title: entry.title.isNotEmpty ? entry.title : entry.videoId,
+      channelName: entry.artist,
+      thumbnailUrl: entry.thumbnailPath.isNotEmpty
+          ? entry.thumbnailPath
+          : 'https://i.ytimg.com/vi/${entry.videoId}/hqdefault.jpg',
+      duration: Duration(milliseconds: entry.durationMs),
+      isLocal: true,
     );
-    playSong(song);
+    playSong(song, queue: queue);
   }
 
   void _doPlaySong(

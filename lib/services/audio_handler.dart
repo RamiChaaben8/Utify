@@ -19,6 +19,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:hive/hive.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../models/song.dart';
@@ -40,6 +41,7 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> Function()? onSkipToNext;
   Future<void> Function()? onSkipToPrevious;
   Future<void> Function(Duration)? onSeek;
+  Future<void> Function()? onToggleLike;
 
   TuneifyAudioHandler(this._service) {
     _subs.add(_service.playerStateStream.listen(_onPlayerState));
@@ -77,11 +79,16 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
 
   AudioProcessingState _mapProcessingState(ProcessingState ps) {
     switch (ps) {
-      case ProcessingState.idle:       return AudioProcessingState.idle;
-      case ProcessingState.loading:    return AudioProcessingState.loading;
-      case ProcessingState.buffering:  return AudioProcessingState.buffering;
-      case ProcessingState.ready:      return AudioProcessingState.ready;
-      case ProcessingState.completed:  return AudioProcessingState.completed;
+      case ProcessingState.idle:
+        return AudioProcessingState.idle;
+      case ProcessingState.loading:
+        return AudioProcessingState.loading;
+      case ProcessingState.buffering:
+        return AudioProcessingState.buffering;
+      case ProcessingState.ready:
+        return AudioProcessingState.ready;
+      case ProcessingState.completed:
+        return AudioProcessingState.completed;
     }
   }
 
@@ -90,9 +97,16 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
     required AudioProcessingState processingState,
   }) {
     final idx = _service.currentIndex;
+    final liked = _isCurrentSongLiked();
 
     playbackState.add(PlaybackState(
       controls: [
+        MediaControl.custom(
+          androidIcon:
+              liked ? 'drawable/ic_favorite' : 'drawable/ic_favorite_border',
+          label: liked ? 'Unlike' : 'Like',
+          name: 'toggleLike',
+        ),
         const MediaControl(
           androidIcon: 'drawable/ic_skip_previous',
           label: 'Previous',
@@ -123,7 +137,7 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
         MediaAction.skipToNext,
         MediaAction.skipToPrevious,
       },
-      androidCompactActionIndices: const [0, 1, 2],
+      androidCompactActionIndices: const [0, 2, 3],
       processingState: processingState,
       playing: playing,
       updatePosition: _service.player.position,
@@ -135,11 +149,15 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void updateCurrentSong() {
     final queue = _service.queue;
-    final idx   = _service.currentIndex;
+    final idx = _service.currentIndex;
     if (idx < 0 || idx >= queue.length) return;
 
     final current = queue[idx];
-    final next    = queue.length > 1 ? queue[(idx + 1) % queue.length] : null;
+    final next = idx + 1 < queue.length ? queue[idx + 1] : null;
+    final liked = _isCurrentSongLiked();
+    final duration = _service.player.duration ??
+        mediaItem.value?.duration ??
+        (current.duration == Duration.zero ? null : current.duration);
 
     final item = MediaItem(
       id: current.id,
@@ -148,28 +166,55 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
       album: 'Tuneify',
       displaySubtitle: next != null ? 'Next: ${next.title}' : null,
       artUri: current.thumbnailUrl.isNotEmpty
-          ? Uri.parse(current.thumbnailUrl) : null,
-      duration: current.duration == Duration.zero ? null : current.duration,
-      extras: next != null ? {
-        'nextSongId':     next.id,
-        'nextSongTitle':  next.title,
-        'nextSongArtist': next.channelName,
-        'nextSongArt':    next.thumbnailUrl,
-      } : null,
+          ? Uri.parse(current.thumbnailUrl)
+          : null,
+      duration: duration,
+      extras: next != null
+          ? {
+              'nextSongId': next.id,
+              'nextSongTitle': next.title,
+              'nextSongArtist': next.channelName,
+              'nextSongArt': next.thumbnailUrl,
+              'liked': liked,
+            }
+          : null,
     );
 
     mediaItem.add(item);
 
-    this.queue.add(queue.map((s) => MediaItem(
-      id: s.id,
-      title: s.title,
-      artist: s.channelName,
-      artUri: s.thumbnailUrl.isNotEmpty ? Uri.parse(s.thumbnailUrl) : null,
-    )).toList());
+    this.queue.add(queue
+        .map((s) => MediaItem(
+              id: s.id,
+              title: s.title,
+              artist: s.channelName,
+              artUri:
+                  s.thumbnailUrl.isNotEmpty ? Uri.parse(s.thumbnailUrl) : null,
+            ))
+        .toList());
+  }
+
+  bool _isCurrentSongLiked() {
+    final id = _service.currentSong?.id;
+    if (id == null || !Hive.isBoxOpen('liked_songs')) return false;
+    return Hive.box<Song>('liked_songs').containsKey(id);
+  }
+
+  @override
+  Future<dynamic> customAction(String name,
+      [Map<String, dynamic>? extras]) async {
+    if (name != 'toggleLike') return null;
+    if (onToggleLike != null) {
+      await onToggleLike!();
+    }
+    _pushPlaybackState(
+      playing: _service.player.playing,
+      processingState: _mapProcessingState(_service.player.processingState),
+    );
+    return true;
   }
 
   Song? get nextSong {
-    final q   = _service.queue;
+    final q = _service.queue;
     final idx = _service.currentIndex;
     if (q.length <= 1 || idx < 0) return null;
     return q[(idx + 1) % q.length];

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/player_provider.dart';
@@ -10,6 +10,7 @@ import '../providers/guest_session_provider.dart';
 import '../screens/cache_settings_screen.dart';
 import '../screens/privacy_settings_screen.dart';
 import '../services/firestore_service.dart';
+import '../services/artwork_cache_manager.dart';
 import '../desktop/theme/desktop_theme.dart';
 import 'update_dialog.dart';
 
@@ -19,16 +20,20 @@ class ProfileAvatar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
-    final user = authState.asData?.value ??
-        ref.read(authServiceProvider).currentUser;
+    final user =
+        authState.asData?.value ?? ref.read(authServiceProvider).currentUser;
     final theme = context.appTheme;
     return GestureDetector(
       onTap: () => showAccountMenu(context, ref),
       child: CircleAvatar(
         radius: 18,
         backgroundColor: theme.highlightElevated,
-        backgroundImage:
-            user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+        backgroundImage: user?.photoURL != null
+            ? CachedNetworkImageProvider(
+                user!.photoURL!,
+                cacheManager: ArtworkCacheManager.instance,
+              )
+            : null,
         child: user?.photoURL == null
             ? Icon(Icons.person_outline, color: theme.iconDefault, size: 22)
             : null,
@@ -126,7 +131,10 @@ class _AccountMenuPanelState extends ConsumerState<_AccountMenuPanel> {
                     CircleAvatar(
                       radius: 25,
                       backgroundImage: user?.photoURL?.isNotEmpty == true
-                          ? NetworkImage(user!.photoURL!)
+                          ? CachedNetworkImageProvider(
+                              user!.photoURL!,
+                              cacheManager: ArtworkCacheManager.instance,
+                            )
                           : null,
                       child: user?.photoURL?.isNotEmpty == true
                           ? null
@@ -186,15 +194,15 @@ class _AccountMenuPanelState extends ConsumerState<_AccountMenuPanel> {
                           },
                         ),
                       ListTile(
-                        leading: Icon(Icons.edit_outlined,
-                            color: theme.iconDefault),
+                        leading:
+                            Icon(Icons.edit_outlined, color: theme.iconDefault),
                         title: Text('Edit Profile',
                             style: TextStyle(color: theme.text)),
                         onTap: () => _openEditProfile(context),
                       ),
                       ListTile(
-                        leading: Icon(Icons.lock_outline,
-                            color: theme.iconDefault),
+                        leading:
+                            Icon(Icons.lock_outline, color: theme.iconDefault),
                         title: Text('Privacy',
                             style: TextStyle(color: theme.text)),
                         onTap: () {
@@ -204,8 +212,7 @@ class _AccountMenuPanelState extends ConsumerState<_AccountMenuPanel> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    PrivacySettingsScreen(user: u),
+                                builder: (_) => PrivacySettingsScreen(user: u),
                               ),
                             );
                           }
@@ -236,8 +243,7 @@ class _AccountMenuPanelState extends ConsumerState<_AccountMenuPanel> {
 
                 // ── Sign out ─────────────────────────────────────────────────
                 ListTile(
-                  leading:
-                      Icon(Icons.logout, color: theme.notificationError),
+                  leading: Icon(Icons.logout, color: theme.notificationError),
                   title: Text(
                     'Sign Out',
                     style: TextStyle(
@@ -379,8 +385,8 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
       if (uri == null ||
           !uri.hasAuthority ||
           !['http', 'https'].contains(uri.scheme.toLowerCase())) {
-        setState(() =>
-            _validationError = 'Image URL must start with http:// or https://.');
+        setState(() => _validationError =
+            'Image URL must start with http:// or https://.');
         return;
       }
     }
@@ -428,8 +434,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
           TextField(
             controller: _photoController,
             keyboardType: TextInputType.url,
-            decoration:
-                const InputDecoration(labelText: 'Profile image URL'),
+            decoration: const InputDecoration(labelText: 'Profile image URL'),
           ),
           if (_validationError != null) ...[
             const SizedBox(height: 8),
@@ -442,8 +447,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
       ),
       actions: [
         TextButton(
-          onPressed:
-              _saving ? null : () => Navigator.pop(context, false),
+          onPressed: _saving ? null : () => Navigator.pop(context, false),
           child: const Text('Cancel'),
         ),
         FilledButton(

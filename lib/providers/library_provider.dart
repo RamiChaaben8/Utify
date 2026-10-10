@@ -167,7 +167,8 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final box = _hive.likedBox;
       final currentKeys = box.keys.map((k) => k.toString()).toSet();
       final newKeys = liked.map((s) => s.id).toSet();
-      if (currentKeys.length == newKeys.length && currentKeys.containsAll(newKeys)) {
+      if (currentKeys.length == newKeys.length &&
+          currentKeys.containsAll(newKeys)) {
         return;
       }
       await box.clear();
@@ -229,13 +230,24 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     }
   }
 
-  Future<void> createPlaylistWithSongs(String name, List<Song> songs) async {
+  Future<void> createPlaylistWithSongs(
+    String name,
+    List<Song> songs, {
+    String visibility = 'private',
+    bool collaborative = false,
+  }) async {
     if (_uid != null) {
-      await _fs.createPlaylistWithSongs(_uid!, name, songs);
+      if (collaborative) {
+        await _fs.createSharedPlaylist(_uid!, name, songs,
+            visibility: visibility);
+      } else {
+        await _fs.createPlaylistWithSongs(_uid!, name, songs,
+            visibility: visibility);
+      }
       return;
     }
 
-    await _hive.createPlaylist(name);
+    await _hive.createPlaylist(name, visibility: visibility);
     final playlist = _hive.getPlaylists().last;
     final key = playlist.key as int;
     for (final song in songs) {

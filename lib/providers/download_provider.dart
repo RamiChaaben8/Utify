@@ -49,21 +49,21 @@ class DownloadState {
   final String? error;
 
   const DownloadState({
-    this.tasks      = const {},
+    this.tasks = const {},
     this.downloaded = const [],
     this.error,
   });
 
   DownloadState copyWith({
     Map<String, DownloadTask>? tasks,
-    List<DownloadIndexEntry>?  downloaded,
-    String?                    error,
-    bool                       clearError = false,
+    List<DownloadIndexEntry>? downloaded,
+    String? error,
+    bool clearError = false,
   }) {
     return DownloadState(
-      tasks:      tasks      ?? this.tasks,
+      tasks: tasks ?? this.tasks,
       downloaded: downloaded ?? this.downloaded,
-      error:      clearError ? null : (error ?? this.error),
+      error: clearError ? null : (error ?? this.error),
     );
   }
 
@@ -92,8 +92,24 @@ class DownloadState {
   String? localPath(String videoId) =>
       DownloadIndexService.instance.get(videoId)?.path;
 
+  /// Converts the persisted download index into the same Song shape used by
+  /// normal playlists, so Downloads can be played as one queue.
+  List<Song> get downloadedSongs =>
+      downloaded.map(downloadEntryToSong).toList(growable: false);
+
   /// Total bytes of all persisted downloads.
   int get totalSizeBytes => DownloadIndexService.instance.totalSizeBytes;
+}
+
+Song downloadEntryToSong(DownloadIndexEntry entry) {
+  return Song(
+    id: entry.videoId,
+    title: entry.title.isNotEmpty ? entry.title : entry.videoId,
+    channelName: entry.artist,
+    thumbnailUrl: 'https://i.ytimg.com/vi/${entry.videoId}/hqdefault.jpg',
+    duration: Duration(milliseconds: entry.durationMs),
+    isLocal: true,
+  );
 }
 
 // ── Notifier ──────────────────────────────────────────────────────────────────
@@ -123,7 +139,7 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
     }
 
     state = DownloadState(
-      tasks:      Map.unmodifiable(currentTasks),
+      tasks: Map.unmodifiable(currentTasks),
       downloaded: _cachedDownloaded,
     );
   }
@@ -136,7 +152,8 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
     } catch (e) {
       if (mounted) {
         state = state.copyWith(
-          error: 'Download failed: ${e.toString().replaceAll('Exception: ', '')}',
+          error:
+              'Download failed: ${e.toString().replaceAll('Exception: ', '')}',
         );
       }
     }
@@ -148,11 +165,11 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
   Future<void> downloadLikedSongs(List<Song> liked) =>
       _service.downloadLikedSongs(liked);
 
-  void cancelDownload(String videoId)  => _service.cancelDownload(videoId);
+  void cancelDownload(String videoId) => _service.cancelDownload(videoId);
 
-  void pauseDownload(String videoId)   => _service.pauseDownload(videoId);
+  void pauseDownload(String videoId) => _service.pauseDownload(videoId);
 
-  void resumeDownload(String videoId)  => _service.resumeDownload(videoId);
+  void resumeDownload(String videoId) => _service.resumeDownload(videoId);
 
   Future<void> retryDownload(String videoId) => _service.retryDownload(videoId);
 
@@ -172,11 +189,11 @@ class DownloadNotifier extends StateNotifier<DownloadState> {
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  String get downloadQuality  => _service.downloadQuality;
-  bool   get downloadOnMobile => _service.downloadOnMobile;
+  String get downloadQuality => _service.downloadQuality;
+  bool get downloadOnMobile => _service.downloadOnMobile;
 
-  Future<void> setDownloadQuality(String q)  => _service.setDownloadQuality(q);
-  Future<void> setDownloadOnMobile(bool v)   => _service.setDownloadOnMobile(v);
+  Future<void> setDownloadQuality(String q) => _service.setDownloadQuality(q);
+  Future<void> setDownloadOnMobile(bool v) => _service.setDownloadOnMobile(v);
 
   // ── Playlist auto-download ─────────────────────────────────────────────────
 

@@ -53,12 +53,19 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
   late SongFilter _filter;
   late List<Song> _songs;
   bool _editingOrder = false;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _filter = widget.forcedFilter ?? SongFilter.all;
     _songs = List<Song>.from(widget.songs);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   List<Song> get _filtered => applyFilter(_songs, _filter);
@@ -523,104 +530,110 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       body: SafeArea(
         top: false,
         bottom: true,
-        child: CustomScrollView(
-          slivers: [
-            // ── Header ─────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _PlaylistHeader(
-                title: widget.title,
-                songs: songs,
-                icon: widget.icon,
-                creatorName: currentPlaylist?.ownerName ??
-                    ref.watch(authServiceProvider).currentUser?.displayName ??
-                    'You',
-                shuffle: shuffle,
-                onPlay: () => _playPlaylist(shuffle: false),
-                onShuffle: () => _playPlaylist(shuffle: true),
-                onDownload: _downloadPlaylist,
-                onMore: currentPlaylist == null ? null : _showPlaylistDetails,
-                onInvite: currentPlaylist == null
-                    ? null
-                    : () async {
-                        final selected = await showCollaboratorInviteDialog(
-                            context, ref, currentPlaylist);
-                        if (selected == null || !context.mounted) return;
-                        try {
-                          await ref
-                              .read(libraryProvider.notifier)
-                              .inviteCollaborator(currentPlaylist, selected);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Playlist invitation sent.')),
-                            );
+        child: Scrollbar(
+          controller: _scrollController,
+          interactive: true,
+          thumbVisibility: true,
+          child: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // ── Header ─────────────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: _PlaylistHeader(
+                  title: widget.title,
+                  songs: songs,
+                  icon: widget.icon,
+                  creatorName: currentPlaylist?.ownerName ??
+                      ref.watch(authServiceProvider).currentUser?.displayName ??
+                      'You',
+                  shuffle: shuffle,
+                  onPlay: () => _playPlaylist(shuffle: false),
+                  onShuffle: () => _playPlaylist(shuffle: true),
+                  onDownload: _downloadPlaylist,
+                  onMore: currentPlaylist == null ? null : _showPlaylistDetails,
+                  onInvite: currentPlaylist == null
+                      ? null
+                      : () async {
+                          final selected = await showCollaboratorInviteDialog(
+                              context, ref, currentPlaylist);
+                          if (selected == null || !context.mounted) return;
+                          try {
+                            await ref
+                                .read(libraryProvider.notifier)
+                                .inviteCollaborator(currentPlaylist, selected);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Playlist invitation sent.')),
+                              );
+                            }
+                          } catch (error) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(error.toString())),
+                              );
+                            }
                           }
-                        } catch (error) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(error.toString())),
-                            );
-                          }
-                        }
-                      },
+                        },
+                ),
               ),
-            ),
 
-            if (currentPlaylist != null)
-              SliverToBoxAdapter(child: _buildPlaylistActions()),
+              if (currentPlaylist != null)
+                SliverToBoxAdapter(child: _buildPlaylistActions()),
 
-            // ── Song list ─────────────────────────────────────────────────
-            _editingOrder && currentPlaylist != null
-                ? SliverReorderableList(
-                    itemCount: _songs.length,
-                    onReorder: (oldIndex, newIndex) {
-                      setState(() {
-                        if (oldIndex < newIndex) newIndex--;
-                        final song = _songs.removeAt(oldIndex);
-                        _songs.insert(newIndex, song);
-                      });
-                    },
-                    itemBuilder: (context, index) {
-                      final song = _songs[index];
-                      return ReorderableDelayedDragStartListener(
-                        key: ValueKey(song.id),
-                        index: index,
-                        child: SongTile(
-                          song: song,
-                          onTap: () => _playSong(song, _songs),
-                          currentPlaylist: currentPlaylist,
-                          trailing: const Icon(Icons.drag_handle,
-                              color: Color(0xFFB3B3B3)),
+              // ── Song list ─────────────────────────────────────────────────
+              _editingOrder && currentPlaylist != null
+                  ? SliverReorderableList(
+                      itemCount: _songs.length,
+                      onReorder: (oldIndex, newIndex) {
+                        setState(() {
+                          if (oldIndex < newIndex) newIndex--;
+                          final song = _songs.removeAt(oldIndex);
+                          _songs.insert(newIndex, song);
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        final song = _songs[index];
+                        return ReorderableDelayedDragStartListener(
+                          key: ValueKey(song.id),
+                          index: index,
+                          child: SongTile(
+                            song: song,
+                            onTap: () => _playSong(song, _songs),
+                            currentPlaylist: currentPlaylist,
+                            trailing: const Icon(Icons.drag_handle,
+                                color: Color(0xFFB3B3B3)),
+                          ),
+                        );
+                      },
+                    )
+                  : filtered.isEmpty
+                      ? const SliverFillRemaining(
+                          child: Center(
+                            child: Text('No songs',
+                                style: TextStyle(color: Color(0xFFB3B3B3))),
+                          ),
+                        )
+                      : SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (ctx, i) {
+                              final song = filtered[i];
+                              final isCurrent = currentPlayingId == song.id;
+                              return SongTile(
+                                song: song,
+                                isPlaying: isCurrent && isPlayerPlaying,
+                                isSelected: isCurrent,
+                                onTap: () => _playSong(song, filtered),
+                                currentPlaylist: currentPlaylist,
+                              );
+                            },
+                            childCount: filtered.length,
+                          ),
                         ),
-                      );
-                    },
-                  )
-                : filtered.isEmpty
-                    ? const SliverFillRemaining(
-                        child: Center(
-                          child: Text('No songs',
-                              style: TextStyle(color: Color(0xFFB3B3B3))),
-                        ),
-                      )
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (ctx, i) {
-                            final song = filtered[i];
-                            final isCurrent = currentPlayingId == song.id;
-                            return SongTile(
-                              song: song,
-                              isPlaying: isCurrent && isPlayerPlaying,
-                              isSelected: isCurrent,
-                              onTap: () => _playSong(song, filtered),
-                              currentPlaylist: currentPlaylist,
-                            );
-                          },
-                          childCount: filtered.length,
-                        ),
-                      ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 80)),
-          ],
+              const SliverToBoxAdapter(child: SizedBox(height: 80)),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: !hasCurrentSong

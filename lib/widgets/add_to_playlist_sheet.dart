@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../desktop/theme/desktop_theme.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
+import '../providers/guest_session_provider.dart';
 
 class AddToPlaylistSheet extends ConsumerWidget {
   final Song song;
@@ -45,17 +46,15 @@ class AddToPlaylistSheet extends ConsumerWidget {
           else
             // Use the Playlist object directly — not a list index
             ...playlists.map((pl) => ListTile(
-                  leading:
-                      Icon(Icons.queue_music, color: theme.iconDefault),
-                  title:
-                      Text(pl.name, style: TextStyle(color: theme.text)),
+                  leading: Icon(Icons.queue_music, color: theme.iconDefault),
+                  title: Text(pl.name, style: TextStyle(color: theme.text)),
                   onTap: () {
                     ref
                         .read(libraryProvider.notifier)
                         .addSongToPlaylistObj(pl, song);
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('Added to ${pl.name}')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Added to ${pl.name}')));
                   },
                 )),
         ],
@@ -63,50 +62,81 @@ class AddToPlaylistSheet extends ConsumerWidget {
     );
   }
 
-  Future<void> _showCreatePlaylistDialog(BuildContext context, WidgetRef ref) async {
+  Future<void> _showCreatePlaylistDialog(
+      BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController();
+    var visibility = 'private';
+    var collaborative = false;
     final theme = context.appTheme;
+    final isGuest = ref.read(guestSessionProvider);
     try {
       await showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: theme.card,
-          title: Text('New Playlist', style: TextStyle(color: theme.text)),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            style: TextStyle(color: theme.text),
-            decoration: InputDecoration(
-              hintText: 'Playlist name',
-              hintStyle: TextStyle(color: theme.subtext),
-            ),
-            onSubmitted: (v) {
-              if (v.trim().isNotEmpty) {
-                ref
-                    .read(libraryProvider.notifier)
-                    .createPlaylist(v.trim());
-              }
-              Navigator.pop(ctx);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel', style: TextStyle(color: theme.subtext)),
-            ),
-            TextButton(
-              onPressed: () {
-                if (controller.text.trim().isNotEmpty) {
-                  ref
-                      .read(libraryProvider.notifier)
-                      .createPlaylist(controller.text.trim());
-                }
-                Navigator.pop(ctx);
-              },
-              child: Text('Create', style: TextStyle(color: theme.button)),
-            ),
-          ],
-        ),
+        builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setState) => AlertDialog(
+                  backgroundColor: theme.card,
+                  title:
+                      Text('New Playlist', style: TextStyle(color: theme.text)),
+                  content: Column(mainAxisSize: MainAxisSize.min, children: [
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      style: TextStyle(color: theme.text),
+                      decoration: InputDecoration(
+                        hintText: 'Playlist name',
+                        hintStyle: TextStyle(color: theme.subtext),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: visibility,
+                      decoration: InputDecoration(labelText: 'Privacy'),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'private', child: Text('Private')),
+                        DropdownMenuItem(
+                            value: 'friends', child: Text('Friends')),
+                        DropdownMenuItem(
+                            value: 'public', child: Text('Public')),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => visibility = value ?? 'private'),
+                    ),
+                    if (!isGuest)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: collaborative,
+                        title: Text('Collaborative playlist',
+                            style: TextStyle(color: theme.text)),
+                        onChanged: (value) =>
+                            setState(() => collaborative = value ?? false),
+                      ),
+                  ]),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text('Cancel',
+                          style: TextStyle(color: theme.subtext)),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        final name = controller.text.trim();
+                        if (name.isEmpty) return;
+                        ref
+                            .read(libraryProvider.notifier)
+                            .createPlaylistWithSongs(
+                              name,
+                              [song],
+                              visibility: visibility,
+                              collaborative: collaborative,
+                            );
+                        Navigator.pop(ctx);
+                      },
+                      child:
+                          Text('Create', style: TextStyle(color: theme.button)),
+                    ),
+                  ],
+                )),
       );
     } finally {
       controller.dispose();

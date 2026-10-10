@@ -17,6 +17,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/guest_session_provider.dart';
+import '../../providers/download_provider.dart';
 import '../theme/desktop_theme.dart';
 import '../theme/ui_sizes.dart';
 import '../widgets/invite_collaborator_dialog.dart';
@@ -81,10 +82,14 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
+    final downloads = ref.watch(downloadProvider);
     final layout = context.appTheme.layout;
 
     final likedPlaylist = library.likedSongs.isNotEmpty
         ? Playlist(name: 'Liked Songs', songs: library.likedSongs)
+        : null;
+    final downloadsPlaylist = downloads.downloadedSongs.isNotEmpty
+        ? Playlist(name: 'Downloads', songs: downloads.downloadedSongs)
         : null;
 
     return AnimatedContainer(
@@ -105,14 +110,15 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
       ),
       clipBehavior: Clip.antiAlias,
       child: _collapsed
-          ? _buildCollapsed(likedPlaylist, library)
-          : _buildExpanded(likedPlaylist, library),
+          ? _buildCollapsed(likedPlaylist, downloadsPlaylist, library)
+          : _buildExpanded(likedPlaylist, downloadsPlaylist, library),
     );
   }
 
   // ── Collapsed: icon-only column ──────────────────────────────────────────
 
-  Widget _buildCollapsed(Playlist? likedPlaylist, LibraryState library) {
+  Widget _buildCollapsed(Playlist? likedPlaylist, Playlist? downloadsPlaylist,
+      LibraryState library) {
     return Column(
       children: [
         SizedBox(height: 16),
@@ -158,6 +164,20 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
 
         if (likedPlaylist != null) SizedBox(height: 4),
 
+        if (downloadsPlaylist != null)
+          Tooltip(
+            message: 'Downloads',
+            child: _IconOnlyTile(
+              icon: Icons.cloud_done_rounded,
+              color: const Color(0xFF1DB954),
+              isActive: widget.selectedPlaylist?.name == 'Downloads',
+              onTap: () {
+                final active = widget.selectedPlaylist?.name == 'Downloads';
+                widget.onPlaylistSelected(active ? null : downloadsPlaylist);
+              },
+            ),
+          ),
+
         // Playlist icons
         Expanded(
           child: ListView(
@@ -184,7 +204,8 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
 
   // ── Expanded: full sidebar ───────────────────────────────────────────────
 
-  Widget _buildExpanded(Playlist? likedPlaylist, LibraryState library) {
+  Widget _buildExpanded(Playlist? likedPlaylist, Playlist? downloadsPlaylist,
+      LibraryState library) {
     final folders = <String, List<Playlist>>{};
     final unfiled = <Playlist>[];
     for (final folder in library.folders) {
@@ -346,15 +367,28 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
                     color: context.appTheme.dividerColor,
                     height: 16,
                     thickness: 0.5),
-              // ── Downloads ────────────────────────────────────────────
+              // ── Downloads playlist ───────────────────────────────────
+              if (downloadsPlaylist != null)
+                _PlaylistTile(
+                  playlist: downloadsPlaylist,
+                  isActive: widget.selectedPlaylist != null &&
+                      _isSamePlaylist(
+                          widget.selectedPlaylist!, downloadsPlaylist),
+                  onTap: () {
+                    final active = widget.selectedPlaylist?.name == 'Downloads';
+                    widget
+                        .onPlaylistSelected(active ? null : downloadsPlaylist);
+                  },
+                  onOpen: () => widget.onPlaylistSelected(downloadsPlaylist),
+                ),
               if (widget.onDownloadsSelected != null)
                 ListTile(
                   dense: true,
-                  leading: const Icon(Icons.cloud_done_rounded,
-                      color: Color(0xFF1DB954), size: 20),
+                  leading: const Icon(Icons.settings_outlined,
+                      color: Colors.white38, size: 18),
                   title: const Text(
-                    'Downloads',
-                    style: TextStyle(color: Colors.white, fontSize: 14),
+                    'Manage downloads',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                   onTap: widget.onDownloadsSelected,
                   contentPadding:
@@ -915,7 +949,8 @@ class _IconOnlyTileState extends State<_IconOnlyTile> {
                 ? Border.all(
                     // iconColor(text) demotes to plain grey in Verdant Night,
                     // so the selected-playlist ring lost its accent there.
-                    color: context.appTheme.nowPlayingAccent.withValues(alpha: 0.5),
+                    color: context.appTheme.nowPlayingAccent
+                        .withValues(alpha: 0.5),
                     width: 1)
                 : null,
           ),
@@ -980,8 +1015,8 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
         child: SizedBox(
           width: 260,
           child: ListTile(
-            leading: Icon(Icons.queue_music,
-                color: context.appTheme.iconDefault),
+            leading:
+                Icon(Icons.queue_music, color: context.appTheme.iconDefault),
             title: Text(widget.playlist.name,
                 style: TextStyle(color: context.appTheme.text)),
           ),

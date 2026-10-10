@@ -23,7 +23,8 @@ import '../models/listen_party.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final Map<String, ({PublicProfile profile, DateTime fetchedAt})> _profileCache = {};
+  final Map<String, ({PublicProfile profile, DateTime fetchedAt})>
+      _profileCache = {};
   static const Duration _profileTtl = Duration(minutes: 10);
   static final RegExp usernamePattern = RegExp(r'^[a-z0-9_]{3,20}$');
 
@@ -86,7 +87,8 @@ class FirestoreService {
 
   Future<PublicProfile?> getPublicProfile(String uid) async {
     final cached = _profileCache[uid];
-    if (cached != null && DateTime.now().difference(cached.fetchedAt) < _profileTtl) {
+    if (cached != null &&
+        DateTime.now().difference(cached.fetchedAt) < _profileTtl) {
       return cached.profile;
     }
 
@@ -651,6 +653,7 @@ class FirestoreService {
     String name,
     List<Song> songs, {
     String? description,
+    String visibility = 'private',
   }) async {
     final ref = _userCol(uid, 'playlists').doc();
     await ref.set({
@@ -661,7 +664,7 @@ class FirestoreService {
       'tracks': songs.map(_songToMap).toList(),
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-      'visibility': 'private',
+      'visibility': visibility,
       'pinned': false,
       'folderId': null,
     });
