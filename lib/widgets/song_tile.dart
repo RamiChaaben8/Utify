@@ -20,7 +20,6 @@ import '../desktop/theme/desktop_theme.dart';
 import '../models/song.dart';
 import '../models/playlist.dart';
 import '../providers/download_provider.dart';
-import '../providers/youtube_provider.dart';
 import 'app_thumbnail.dart';
 import 'song_context_menu.dart';
 
@@ -55,12 +54,6 @@ class SongTile extends ConsumerStatefulWidget {
 }
 
 class _SongTileState extends ConsumerState<SongTile> {
-  @override
-  void initState() {
-    super.initState();
-    ref.read(youtubeServiceProvider).prefetchUrl(widget.song.id);
-  }
-
   @override
   Widget build(BuildContext context) {
     final song = widget.song;

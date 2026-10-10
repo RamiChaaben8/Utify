@@ -14,6 +14,7 @@ import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart' show WidgetsBinding, precacheImage;
 import 'package:hive/hive.dart';
@@ -30,6 +31,7 @@ import 'youtube_service.dart';
 
 class AudioPlayerService {
   static const _streamAttemptTimeout = Duration(seconds: 7);
+  static const _localSourceTimeout = Duration(seconds: 3);
   static const _maxStreamsPerLoad = 3;
 
   /// Private audio file cache is an Android-only feature. Desktop keeps the
@@ -444,7 +446,7 @@ class AudioPlayerService {
         await _player.setAudioSource(
           AudioSource.file(localPath, tag: mediaItem),
           preload: true,
-        );
+        ).timeout(_localSourceTimeout);
       } else if (localPath != null) {
         // ① Downloaded file via MediaStore URI (Android API 29+).
         if (kDebugMode) {
@@ -458,23 +460,27 @@ class AudioPlayerService {
           );
           mediaStoreOk = true;
         } catch (uriErr) {
-          // MediaStore URI failed — remove from index, stream instead.
           debugPrint('[AudioPlayer] MediaStore URI failed for ${song.id}: $uriErr');
-          unawaited(DownloadIndexService.instance.remove(song.id));
-          _errorController.add('Download file could not be opened; streaming instead.');
+          final connectivity = await Connectivity().checkConnectivity();
+          final canReachNetwork = connectivity.any(
+            (result) => result != ConnectivityResult.none,
+          );
+          if (!canReachNetwork) rethrow;
         }
 
         if (!mediaStoreOk) {
-          // Fall through to remote source.
+          // If the local URI cannot be opened while connected, recover by
+          // resolving a remote source. Offline playback never enters this path.
           if (_loadSerial != mySerial) return;
-          final loaded = await _openRemoteSource(song, mediaItem, mySerial, attemptedUrls);
+          final loaded =
+              await _openRemoteSource(song, mediaItem, mySerial, attemptedUrls);
           if (_loadSerial != mySerial) return;
           if (loaded == null) {
             throw YoutubeServiceException(
               'No compatible audio stream could be opened for ${song.title}.',
             );
           }
-          activeStreamUrl  = loaded.streamUrl;
+          activeStreamUrl = loaded.streamUrl;
           _loadedFromCache = loaded.fromCache;
         }
       } else {

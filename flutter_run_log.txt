@@ -1,0 +1,585 @@
+Launching lib\main.dart on Windows in debug mode...
+Building Windows application...                                 
+Building Windows application...                                    18.9s
+√ Built build\windows\x64\runner\Debug\utify.exe
+Loading ffmpeg-kit.
+Loaded ffmpeg-kit-audio-x86_64-6.0-20260712.
+package:media_kit_libs_windows_audio registered.
+[FlutterError] Zone mismatch.
+The Flutter bindings were initialized in a different zone than is now being used. This will likely cause confusion and bugs as any zone-specific configuration will inconsistently use the configuration of the original binding initialization zone or this zone based on hard-to-predict factors such as which zone was active when a particular callback was set.
+It is important to use the same zone when calling `ensureInitialized` on the binding as when calling `runApp` later.
+To make this warning fatal, set BindingBase.debugZoneErrorsAreFatal to true before the bindings are initialized (i.e. as the first statement in `void main() { }`).
+[FlutterError] stack:
+#0      BindingBase.debugCheckZone.<anonymous closure> (package:flutter/src/foundation/binding.dart:520:31)
+#1      BindingBase.debugCheckZone (package:flutter/src/foundation/binding.dart:526:6)
+#2      _runWidget (package:flutter/src/widgets/binding.dart:1949:18)
+#3      runApp (package:flutter/src/widgets/binding.dart:1885:3)
+#4      _appMain (package:utify/main.dart:195:3)
+<asynchronous suspension>
+#5      main (package:utify/main.dart:99:3)
+<asynchronous suspension>
+
+Syncing files to device Windows...                                 133ms
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on Windows is available at: http://127.0.0.1:58310/UWgmfDnX98Y=/
+The Flutter DevTools debugger and profiler on Windows is available at: http://127.0.0.1:58310/UWgmfDnX98Y=/devtools/?uri=ws://127.0.0.1:58310/UWgmfDnX98Y=/ws
+[YoutubeService] pruned 8 expired stream URL(s)
+[DownloadIndex] migrate key="0YF8vecQWYs" runtimeType=String value=C:\Users\ramic\Music\Utify\美波「カワキヲアメク」MV.mp4
+[DownloadIndex] migrate: skip "0YF8vecQWYs" — file not found: C:\Users\ramic\Music\Utify\美波「カワキヲアメク」MV.mp4
+[DownloadIndex] migrate key="2Lb2BiUC898" runtimeType=bool value=true
+[DownloadIndex] migrate key="3X-E5KJEawg" runtimeType=bool value=true
+[DownloadIndex] migrate key="5w3rRFWzjcM" runtimeType=String value=C:\Users\ramic\Music\Utify\Sweden.mp4
+[DownloadIndex] migrate key="C3GouGa0noM" runtimeType=bool value=true
+[DownloadIndex] migrate key="MDErQ1KTzaI" runtimeType=bool value=true
+[DownloadIndex] migrate key="MQXLpSl26q4" runtimeType=bool value=true
+[DownloadIndex] migrate key="MQncMw5N9DA" runtimeType=bool value=true
+[DownloadIndex] migrate key="To4SWGZkEPk" runtimeType=bool value=true
+[DownloadIndex] migrate key="ZRtdQ81jPUQ" runtimeType=bool value=true
+[DownloadIndex] migrate key="ZwXzaqzRVi4" runtimeType=bool value=true
+[DownloadIndex] migrate key="bagucl7jjiM" runtimeType=bool value=true
+[DownloadIndex] migrate key="kwjCbKsY_Kc" runtimeType=bool value=true
+[DownloadIndex] migration complete: 0 migrated, 12 skipped
+media_kit: NativeReferenceHolder: Allocated 1540509296432
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'firebase_auth_plugin/auth-state/[DEFAULT]' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'firebase_auth_plugin/id-token/[DEFAULT]' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[YtMusicService] getHomeFeed: fetching FEmusic_home
+[YtMusicService] getExplore: fetching FEmusic_explore
+[YtMusicService] getUpNext: videoId=zx54nG8hzUI
+[YtMusicService] getUpNext: videoId=zx54nG8hzUI
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'plugins.flutter.io/firebase_firestore/query/e4d4918c-b624-4fa9-ab22-852fb30647b3' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] A RenderFlex overflowed by 25 pixels on the bottom.
+[FlutterError] stack:
+null
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'plugins.flutter.io/firebase_firestore/query/460e34e7-7f9e-45fe-ae20-c28b84d295bf' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[YtMusicService] visitorId fetched: CgsxSWtUTFR4ajFvayiquIjWBjIKCgJUThIEGgAgG2LfAgrcAjIyLllUPWo3dkttczRTZFFtNENTSTRlSEtaaUpYY2lWblc5UjhTa1RJWGtxbnJQT3FBcXBMaG8zVXBzcjlYdWlwZWRhTDc3bVR6ZnRCVEVpTnNKYkFYbkhJWHZYM0wtN2czeFB3UWpmd2ZWUkdDS0dPVWJqcERub2twakkxSklWZzBnRlZfa1h4Q0lWdVBraGJQZDZrY0JfNHRxaDhESkJWOGEzUmVsWWRoa2VhUks2aWlZY2c1SlZJNFltdElfbG5ONkVYalRfZjhELVVsNXpsdHJUbXZETWxXaGhCSXVWOEotYTcwWU93a29CRGxBMkc1QWxUUDNZd3J4dlQ3MUJrYUJpNmZtMnNKajJ1WDZ1aXpRdHpKX2RZa01GeEpmWFozOTlWNnRSR3F3Z3I1dXl3ODlPT3NyX2dWUXFuS09qOFB5MFNMY0NNakJLVlM1YXg4WEx0YUkzVUV5dw%3D%3D
+[YtMusicService] POST next → HTTP 200 (18619 bytes)
+[YtMusicService] getUpNext zx54nG8hzUI: 0 songs
+[HomeFeed] getUpNext → 0 songs
+[YtMusicService] searchSongs: "Coldplay - Topic"
+[YtMusicService] POST next → HTTP 200 (18585 bytes)
+[YtMusicService] getUpNext zx54nG8hzUI: 0 songs
+[HomeFeed] getUpNext → 0 songs
+[YtMusicService] searchSongs: "Coldplay - Topic"
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'plugins.flutter.io/firebase_firestore/query/fc6e1d4a-fa49-4e88-b427-8834677e8d9f' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'plugins.flutter.io/firebase_firestore/query/2f34b933-3099-4196-a2a8-0f7353fff966' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'plugins.flutter.io/firebase_firestore/query/d99b6e09-b385-404d-9c80-3dbd805980d7' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[YtMusicService] POST browse → HTTP 200 (404662 bytes)
+[YtMusicService] sectionContents via tabs[0]: 4 items
+[YtMusicService] section "New albums & singles": 0 songs, 24 albums, 0 artists, 0 playlists
+[YtMusicService] section "New music videos": 21 songs, 0 albums, 0 artists, 0 playlists
+[YtMusicService] _parseSectionList: 2 sections, 1 chips
+[YtMusicService] getExplore: 2 sections
+[HomeFeed] getExplore → 2 sections
+  explore "New albums & singles": 0 songs, 24 albums, 0 playlists
+  explore "New music videos": 21 songs, 0 albums, 0 playlists
+[HomeFeed] new releases: 24, trending: 21
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[YtMusicService] POST browse → HTTP 200 (200440 bytes)
+[YtMusicService] sectionContents via tabs[0]: 3 items
+[YtMusicService] section "Take it easy": 0 songs, 0 albums, 0 artists, 10 playlists
+[YtMusicService] section "Today's hits": 0 songs, 0 albums, 0 artists, 10 playlists
+[YtMusicService] _parseSectionList: 2 sections, 0 chips
+[YtMusicService] getHomeFeed: 2 sections, 0 chips
+[HomeFeed] getHomeFeed → 2 sections, 0 chips
+  section "Take it easy": 0 songs, 0 albums, 0 artists, 10 playlists
+  section "Today's hits": 0 songs, 0 albums, 0 artists, 10 playlists
+[YtMusicService] POST search → HTTP 200 (199023 bytes)
+[YtMusicService] searchSongs "Coldplay - Topic": 20 songs
+[HomeFeed] searchSongs("Coldplay - Topic") → 20 songs
+[YtMusicService] getAlbumsForYou: 20 home albums seeded
+[YtMusicService] getAlbumsForYou FINAL: 20
+[HomeFeed] getAlbumsForYou → 20 albums
+[AppThumbnail] Failed to load "https://img.youtube.com/vi/z0altgaRFys/maxresdefault.jpg": HttpException: Invalid statusCode: 404, uri = https://img.youtube.com/vi/z0altgaRFys/maxresdefault.jpg
+[YtMusicService] POST search → HTTP 200 (199217 bytes)
+[YtMusicService] searchSongs "Coldplay - Topic": 20 songs
+[HomeFeed] searchSongs("Coldplay - Topic") → 20 songs
+[AppThumbnail] Failed to load "https://img.youtube.com/vi/z0altgaRFys/maxresdefault.jpg": HttpException: Invalid statusCode: 404, uri = https://img.youtube.com/vi/z0altgaRFys/maxresdefault.jpg
+[Connectivity] isOnline=true
+[AppThumbnail] Failed to load "https://img.youtube.com/vi/zO9RzrhYR-I/maxresdefault.jpg": HttpException: Invalid statusCode: 404, uri = https://img.youtube.com/vi/zO9RzrhYR-I/maxresdefault.jpg
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'plugins.flutter.io/firebase_firestore/document/885a8fe1-1402-4378-8605-f89d606215df' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[ERROR:flutter/shell/common/shell.cc(1183)] The 'plugins.flutter.io/firebase_firestore/document/00dabe53-a5ef-4a39-b252-ba1bb4480e36' channel sent a message from native to Flutter on a non-platform thread. Platform channel messages must be sent on the platform thread. Failure to do so may result in data loss or crashes, and must be fixed in the plugin or application code creating that channel.
+See https://docs.flutter.dev/platform-integration/platform-channels#channels-and-platform-threading for more information.
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+MPV: [error] media_kit: error: property not found _setProperty(osc, 1)
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] A RenderFlex overflowed by 150 pixels on the right.
+[FlutterError] stack:
+null
+[FlutterError] A RenderFlex overflowed by 355 pixels on the right.
+[FlutterError] stack:
+null
+MPV: [error] lavf: Failed to create file cache.
+[AudioPlayer] tap-to-first-audio 2053 ms (m9SMT5ipbxk, source: network)
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[FlutterError] ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the intermediate DecoratedBox.
+[FlutterError] stack:
+null
+[DownloadService][2026-10-04T09:28:15.346475Z] m9SMT5ipbxk | QUEUED — "アイドル"
+[DownloadService][2026-10-04T09:28:15.347936Z] m9SMT5ipbxk | SLOT_ACQUIRED — "アイドル"
+[DownloadService][2026-10-04T09:28:15.348984Z] m9SMT5ipbxk | MANIFEST_FETCH_START
+[DownloadService][2026-10-04T09:28:17.278601Z] m9SMT5ipbxk | MANIFEST_FETCH_END — itag=251, container=webm, 147 kbps, size=3.4 MB
+[DownloadService][2026-10-04T09:28:17.280696Z] m9SMT5ipbxk | FILE_CREATED — C:\Users\ramic\Music\Utify\YOASOBI - Topic - アイドル [m9SMT5ipbxk].webm.part
+[DownloadService][2026-10-04T09:28:17.281709Z] m9SMT5ipbxk | STRATEGY_A_START — attempt 0
+[DownloadIndex] cleaned 1 .part file(s)
+[DownloadIndex] migrate key="0YF8vecQWYs" runtimeType=String value=C:\Users\ramic\Music\Utify\美波「カワキヲアメク」MV.mp4
+[DownloadIndex] migrate: skip "0YF8vecQWYs" — file not found: C:\Users\ramic\Music\Utify\美波「カワキヲアメク」MV.mp4
+[DownloadIndex] migrate key="2Lb2BiUC898" runtimeType=bool value=true
+[DownloadIndex] migrate key="3X-E5KJEawg" runtimeType=bool value=true
+[DownloadIndex] migrate key="5w3rRFWzjcM" runtimeType=String value=C:\Users\ramic\Music\Utify\Sweden.mp4
+[DownloadIndex] migrate key="C3GouGa0noM" runtimeType=bool value=true
+[DownloadIndex] migrate key="MDErQ1KTzaI" runtimeType=bool value=true
+[DownloadIndex] migrate key="MQXLpSl26q4" runtimeType=bool value=true
+[DownloadIndex] migrate key="MQncMw5N9DA" runtimeType=bool value=true
+[DownloadIndex] migrate key="To4SWGZkEPk" runtimeType=bool value=true
+[DownloadIndex] migrate key="ZRtdQ81jPUQ" runtimeType=bool value=true
+[DownloadIndex] migrate key="ZwXzaqzRVi4" runtimeType=bool value=true
+[DownloadIndex] migrate key="bagucl7jjiM" runtimeType=bool value=true
+[DownloadIndex] migrate key="kwjCbKsY_Kc" runtimeType=bool value=true
+[DownloadIndex] migration complete: 0 migrated, 12 skipped
+[DownloadService][2026-10-04T09:28:35.352582Z] 3zh9Wb1KuW8 | QUEUED — "Shinunoga E-Wa"
+[DownloadService][2026-10-04T09:28:35.352582Z] 3zh9Wb1KuW8 | SLOT_ACQUIRED — "Shinunoga E-Wa"
+[DownloadService][2026-10-04T09:28:35.352582Z] 3zh9Wb1KuW8 | MANIFEST_FETCH_START
+[DownloadService][2026-10-04T09:28:36.824647Z] 3zh9Wb1KuW8 | MANIFEST_FETCH_END — itag=140, container=m4a, 131 kbps, size=2.9 MB
+[DownloadService][2026-10-04T09:28:36.824647Z] 3zh9Wb1KuW8 | FILE_CREATED — C:\Users\ramic\Music\Utify\Fujii Kaze - Topic - Shinunoga E-Wa [3zh9Wb1KuW8].m4a.part
+[DownloadService][2026-10-04T09:28:36.824647Z] 3zh9Wb1KuW8 | STRATEGY_A_START — attempt 0
+[DownloadService][2026-10-04T09:28:42.286684Z] m9SMT5ipbxk | WATCHDOG_STREAM_STALL — no bytes for 25s — cancelling
+Lost connection to device.
