@@ -46,6 +46,12 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
   TuneifyAudioHandler(this._service) {
     _subs.add(_service.playerStateStream.listen(_onPlayerState));
 
+    // Publish media metadata directly from the audio service. Depending on
+    // startup timing, PlayerNotifier may not exist when playback begins.
+    _subs.add(_service.songChangeStream.listen((_) {
+      updateCurrentSong();
+    }));
+
     _subs.add(_service.positionStream.listen((pos) {
       // OS media sessions only display whole seconds; publishing every audio
       // backend tick creates needless platform-channel and notification work.
@@ -71,6 +77,9 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   void _onPlayerState(PlayerState ps) {
+    if (_service.currentSong != null && mediaItem.value == null) {
+      updateCurrentSong();
+    }
     _pushPlaybackState(
       playing: ps.playing,
       processingState: _mapProcessingState(ps.processingState),
