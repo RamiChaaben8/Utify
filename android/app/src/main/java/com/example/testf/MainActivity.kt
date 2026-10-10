@@ -39,6 +39,21 @@ class MainActivity : AudioServiceActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PERM_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "requestNotificationPermission" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(
+                                this,
+                                Manifest.permission.POST_NOTIFICATIONS,
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            ActivityCompat.requestPermissions(
+                                this,
+                                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                PERM_REQ_CODE,
+                            )
+                        }
+                        result.success(null)
+                    }
                     "requestStoragePermissions" -> {
                         requestStoragePermissions()
                         result.success(null)

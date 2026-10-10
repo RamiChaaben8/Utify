@@ -398,6 +398,14 @@ class _AppShellState extends ConsumerState<AppShell>
         }
       });
     }
+    // Request notification permission early so the media notification is
+    // available before the first playback request on Android 13+.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && Platform.isAndroid) {
+        requestNotificationPermission();
+      }
+    });
+
     // Request storage permission then scan for local music on first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future<void>.delayed(const Duration(seconds: 2), () async {

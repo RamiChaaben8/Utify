@@ -7,6 +7,8 @@
 // is only compiled on Android/iOS.
 // ============================================================
 
+Future<void> requestNotificationPermission() async {}
+
 Future<void> requestStoragePermission() async {
   // Nothing to do on desktop — the OS grants file access by default.
 }

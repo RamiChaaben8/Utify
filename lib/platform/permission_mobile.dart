@@ -14,6 +14,14 @@ import 'package:flutter/services.dart';
 
 const _channel = MethodChannel('com.example.testf/permissions');
 
+Future<void> requestNotificationPermission() async {
+  try {
+    await _channel.invokeMethod<void>('requestNotificationPermission');
+  } catch (_) {
+    // Non-fatal — Android settings can still be used to enable notifications.
+  }
+}
+
 Future<void> requestStoragePermission() async {
   try {
     await _channel.invokeMethod<void>('requestStoragePermissions');
