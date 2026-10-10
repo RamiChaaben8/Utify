@@ -18,7 +18,6 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
 
     companion object {
-        const val CHANNEL             = "com.example.testf/marquee"
         const val LIFECYCLE_CHANNEL   = "com.example.testf/lifecycle"
         const val PERM_CHANNEL        = "com.example.testf/permissions"
         const val PERM_REQ_CODE       = 1001
@@ -26,13 +25,7 @@ class MainActivity : AudioServiceActivity() {
         const val MEDIASTORE_CHANNEL  = "com.example.testf/mediastore"
     }
 
-    private lateinit var marquee: MarqueeNotificationHelper
     private var lifecycleChannel: MethodChannel? = null
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        marquee = MarqueeNotificationHelper(applicationContext)
-    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -41,27 +34,6 @@ class MainActivity : AudioServiceActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             LIFECYCLE_CHANNEL,
         )
-
-        // ── Marquee notification channel ──────────────────────────────────
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "update" -> {
-                        val title     = call.argument<String>("title")     ?: ""
-                        val artist    = call.argument<String>("artist")    ?: ""
-                        val nextLine  = call.argument<String>("nextLine")  ?: ""
-                        val artUrl    = call.argument<String>("artUrl")    ?: ""
-                        val isPlaying = call.argument<Boolean>("isPlaying") ?: false
-                        marquee.update(title, artist, nextLine, artUrl, isPlaying)
-                        result.success(null)
-                    }
-                    "cancel" -> {
-                        marquee.cancel()
-                        result.success(null)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
 
         // ── Runtime permissions channel ───────────────────────────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PERM_CHANNEL)
@@ -133,10 +105,14 @@ class MainActivity : AudioServiceActivity() {
         val permsToRequest = mutableListOf<String>()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ — granular audio permission
+            // Android 13+ — granular audio permission and notifications
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
                     != PackageManager.PERMISSION_GRANTED) {
                 permsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                permsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
             }
         } else {
             // Android 6–12 — legacy storage permission
@@ -146,7 +122,7 @@ class MainActivity : AudioServiceActivity() {
             }
             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                        != PackageManager.PERMISSION_GRANTED) {
+                    != PackageManager.PERMISSION_GRANTED) {
                     permsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }
             }
@@ -161,7 +137,6 @@ class MainActivity : AudioServiceActivity() {
         if (!isChangingConfigurations && isFinishing) {
             lifecycleChannel?.invokeMethod("taskRemoved", null)
         }
-        marquee.dispose()
         lifecycleChannel = null
         super.onDestroy()
     }

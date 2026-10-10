@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // services/sync_service.dart
 //
 // Simple remote-control sync + active-device ownership.
@@ -123,6 +123,12 @@ class SyncService {
   bool get isActive => _isActive;
   bool _guestMode = false;
 
+  StreamSubscription? _deviceListSub;
+  int _deviceCount = 1;
+
+  /// True when at least one other device is registered in Firestore.
+  bool get hasOtherDevices => _deviceCount > 1;
+
   void setGuestMode(bool enabled) => _guestMode = enabled;
 
   /// When true, Firestore writes are silently skipped.
@@ -173,6 +179,12 @@ class SyncService {
     _activeDeviceSub?.cancel();
     _activeDeviceSub = _fs.activeDeviceStream(uid).listen(_onActiveDevice);
 
+    // Subscribe to device list changes to know if other devices are registered.
+    _deviceListSub?.cancel();
+    _deviceListSub = _fs.devicesStream(uid).listen((devices) {
+      _deviceCount = devices.length;
+    });
+
     // Determine initial active state.
     final current = await _fs.getActiveDevice(uid);
     _isActive = current?.deviceId == _deviceId;
@@ -184,6 +196,9 @@ class SyncService {
     _cmdSub = null;
     _activeDeviceSub?.cancel();
     _activeDeviceSub = null;
+    _deviceListSub?.cancel();
+    _deviceListSub = null;
+    _deviceCount = 1;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _isActive = false;

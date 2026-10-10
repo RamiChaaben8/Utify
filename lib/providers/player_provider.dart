@@ -41,8 +41,6 @@ import '../services/firestore_service.dart';
 import 'library_provider.dart';
 import 'sync_provider.dart';
 
-const _marqueeChannel = MethodChannel('com.example.testf/marquee');
-
 // ─── State class ─────────────────────────────────────────────────────────────
 
 class PlayerState {
@@ -170,8 +168,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       if (_sync.service.isActive &&
           state.currentSong != null &&
+          _sync.service.hasOtherDevices &&
           DateTime.now().difference(_lastPositionSync) >=
-              const Duration(seconds: 5)) {
+              const Duration(seconds: 45)) {
         _lastPositionSync = DateTime.now();
         _sendCommand(RemoteCommand.none);
       }
@@ -192,7 +191,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         isPlaying: ps.playing,
         isLoading: loadFinished ? false : state.isLoading,
       );
-      if (loadFinished) _pushMarquee();
     }));
 
     _subs.add(_service.errorStream.listen((msg) {
@@ -212,7 +210,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         clearError: true,
       );
       _handler.updateCurrentSong();
-      _pushMarquee();
 
       if (!_applyingRemote) {
         _library.addToRecentlyPlayed(song).catchError((_) {});
@@ -331,7 +328,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           if (!mounted) return;
           _updateFromService();
           _handler.updateCurrentSong();
-          _pushMarquee();
           if (_service.currentSong != null) {
             _sendCommand(RemoteCommand.playSong);
           }
@@ -364,7 +360,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       );
       if (!doc.isPlaying) _service.pause().catchError((_) {});
       _handler.updateCurrentSong();
-      _pushMarquee();
     }).catchError((e) {
       if (!mounted) return;
       state = state.copyWith(
@@ -425,7 +420,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           isPlaying: false,
         );
         _handler.updateCurrentSong();
-        _pushMarquee();
       } catch (_) {
         if (mounted) state = state.copyWith(isLoading: false);
       } finally {
@@ -534,7 +528,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         isPlaying: doc.isPlaying,
       );
       _handler.updateCurrentSong();
-      _pushMarquee();
     } catch (_) {
       if (mounted) state = state.copyWith(isLoading: false);
     } finally {
@@ -626,7 +619,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         isLoading: false,
       );
       _handler.updateCurrentSong();
-      _pushMarquee();
       _library.addToRecentlyPlayed(song).catchError((_) {});
       if (!suppressRemoteCommand) {
         _sendCommand(RemoteCommand.playSong);
@@ -719,7 +711,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           isLoading: false,
         );
         _handler.updateCurrentSong();
-        _pushMarquee();
         if (_service.currentSong != null) {
           _library
               .addToRecentlyPlayed(_service.currentSong!)
@@ -748,7 +739,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           isLoading: false,
         );
         _handler.updateCurrentSong();
-        _pushMarquee();
       } catch (error) {
         state =
             state.copyWith(isLoading: false, error: 'Could not skip: $error');
@@ -843,23 +833,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final idx = state.currentIndex;
     if (q.length <= 1 || idx < 0) return null;
     return q[(idx + 1) % q.length];
-  }
-
-  // ── Marquee notification (Android only) ──────────────────────────────────
-
-  void _pushMarquee() {
-    if (!Platform.isAndroid) return;
-    final song = state.currentSong;
-    if (song == null) return;
-    final next = nextSong;
-    final nextLine = next != null ? 'Next: ${next.title}' : '';
-    _marqueeChannel.invokeMethod<void>('update', {
-      'title': song.title,
-      'artist': song.channelName,
-      'nextLine': nextLine,
-      'artUrl': song.thumbnailUrl,
-      'isPlaying': state.isPlaying,
-    }).catchError((_) {});
   }
 
   @override

@@ -2,6 +2,7 @@
 
     <!-- Network access for YouTube streams -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <!-- Keep CPU alive during audio playback -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -80,16 +81,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Marquee notification button receiver -->
-        <receiver
-            android:name=".MarqueeButtonReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.example.testf.marquee.PREV"/>
-                <action android:name="com.example.testf.marquee.PP"/>
-                <action android:name="com.example.testf.marquee.NEXT"/>
-            </intent-filter>
-        </receiver>
 
         <meta-data
             android:name="flutterEmbedding"

@@ -145,7 +145,8 @@ class TuneifyAudioHandler extends BaseAudioHandler with SeekHandler {
       id: current.id,
       title: current.title,
       artist: current.channelName,
-      album: next != null ? 'Next: ${next.title}' : 'Tuneify',
+      album: 'Tuneify',
+      displaySubtitle: next != null ? 'Next: ${next.title}' : null,
       artUri: current.thumbnailUrl.isNotEmpty
           ? Uri.parse(current.thumbnailUrl) : null,
       duration: current.duration == Duration.zero ? null : current.duration,
