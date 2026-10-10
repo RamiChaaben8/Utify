@@ -5,8 +5,23 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+namespace {
+HANDLE g_utify_mutex = nullptr;
+constexpr wchar_t kUtifyMutexName[] = L"UtifySingleInstance";
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  g_utify_mutex = CreateMutexW(nullptr, FALSE, kUtifyMutexName);
+  if (g_utify_mutex == nullptr ||
+      GetLastError() == ERROR_ALREADY_EXISTS) {
+    if (g_utify_mutex != nullptr) {
+      CloseHandle(g_utify_mutex);
+      g_utify_mutex = nullptr;
+    }
+    return EXIT_SUCCESS;
+  }
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
@@ -39,5 +54,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   ::CoUninitialize();
+  CloseHandle(g_utify_mutex);
+  g_utify_mutex = nullptr;
   return EXIT_SUCCESS;
 }

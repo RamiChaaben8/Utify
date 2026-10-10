@@ -16,7 +16,7 @@
 
 ; Version is injected by the workflow via /DMyAppVersion=x.y.z
 #ifndef MyAppVersion
-  #define MyAppVersion "1.5.0"
+  #define MyAppVersion "1.6.0"
 #endif
 
 [Setup]
@@ -33,10 +33,12 @@ DefaultDirName={localappdata}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+AppMutex=UtifySingleInstance
 
 ; Close the running app before copying files
 CloseApplications=yes
 CloseApplicationsFilter=*.exe
+RestartApplications=no
 
 ; Output
 OutputDir={#SourcePath}\Output
@@ -56,42 +58,65 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Code]
-// Silently uninstall the previous version before copying new files.
-// This gives a clean upgrade: old DLLs/assets are removed first.
+function FindPreviousUninstaller(var UninstallString: String): Boolean;
+begin
+  Result :=
+    RegQueryStringValue(
+      HKCU,
+      'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
+      'UninstallString',
+      UninstallString) or
+    RegQueryStringValue(
+      HKLM,
+      'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
+      'UninstallString',
+      UninstallString) or
+    RegQueryStringValue(
+      HKLM,
+      'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
+      'UninstallString',
+      UninstallString);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   UninstallString: String;
   ResultCode: Integer;
 begin
   if CurStep = ssInstall then begin
-    // Check HKCU first (user install), then HKLM (machine install)
-    if RegQueryStringValue(HKCU,
-        'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
-        'UninstallString', UninstallString) or
-       RegQueryStringValue(HKLM,
-        'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
-        'UninstallString', UninstallString) or
-       RegQueryStringValue(HKLM,
-        'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}_is1',
-        'UninstallString', UninstallString) then
-    begin
-      Exec(RemoveQuotes(UninstallString),
-          '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
-          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec(
+      ExpandConstant('{cmd}'),
+      '/C taskkill /F /IM utify.exe',
+      '',
+      SW_HIDE,
+      ewWaitUntilTerminated,
+      ResultCode);
+
+    if FindPreviousUninstaller(UninstallString) then begin
+      Exec(
+        RemoveQuotes(UninstallString),
+        '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
+        '',
+        SW_HIDE,
+        ewWaitUntilTerminated,
+        ResultCode);
     end;
   end;
 end;
+
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\*"
 
 [Files]
 Source: "{#SourcePath}\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}";           Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\{#MyAppName}";   Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}";           Filename: "{app}\{#MyAppExeName}"
+Name: "{autoprograms}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}";             Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

@@ -143,28 +143,28 @@ jobs:
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
-    outputs:
-      signing_mode: ${{ steps.signing.outputs.mode }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Select Android signing mode
-        id: signing
-        shell: bash
+      - name: Configure Android release signing
         env:
-          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          if [[ -z "$KEYSTORE" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
-            echo "mode=debug" >> "$GITHUB_OUTPUT"
-            echo "Android signing secrets are not configured; building a debug-signed APK."
-          else
-            echo "mode=release" >> "$GITHUB_OUTPUT"
-            echo "$KEYSTORE" | base64 --decode > android/app/upload-keystore.jks
-            printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\n' "$STORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/app/key.properties
-          fi
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_PASSWORD"
+          test -n "$KEY_ALIAS"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/utify-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=utify-release.jks
+          EOF
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -176,27 +176,22 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - name: Build APK
+      - name: Build release APKs
         env:
-          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
           RELEASE_TAG: ${{ env.UTIFY_RELEASE_TAG }}
         run: |
           VERSION="$(echo "$RELEASE_TAG" | sed -E 's/^[vV]//')"
           if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then VERSION="$VERSION.0"; fi
           IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
           BUILD_NUMBER=$((MAJOR * 1000000 + MINOR * 1000 + PATCH))
-          if [[ "$SIGNING_MODE" == "release" ]]; then
-            flutter build apk --release --build-name="$VERSION" --build-number="$BUILD_NUMBER"
-            cp build/app/outputs/flutter-apk/app-release.apk utify-android.apk
-          else
-            flutter build apk --debug --build-name="$VERSION" --build-number="$BUILD_NUMBER"
-            cp build/app/outputs/flutter-apk/app-debug.apk utify-android.apk
-          fi
-      - name: Upload artifact
+          flutter build apk --release --split-per-abi \
+            --build-name="$VERSION" \
+            --build-number="$BUILD_NUMBER"
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: utify-android
-          path: utify-android.apk
+          name: utify-android-apks
+          path: build/app/outputs/flutter-apk/*.apk
           retention-days: 1
 
   # ── Publish GitHub Release ─────────────────────────────────────────────────
@@ -221,7 +216,7 @@ jobs:
       - name: Download Android artifact
         uses: actions/download-artifact@v4
         with:
-          name: utify-android
+          name: utify-android-apks
           path: artifacts/
 
       - name: List artifacts
@@ -253,7 +248,9 @@ jobs:
             ${{ steps.changelog.outputs.notes }}
 
             ---
-            **Platform support:** Windows ✅ &nbsp;|&nbsp; Android ${{ needs.build-android.outputs.signing_mode == 'release' && '✅ (release-signed)' || '✅ (debug-signed; may require uninstalling the existing app)' }} &nbsp;|&nbsp; macOS 🔜 &nbsp;|&nbsp; Linux 🔜
+            **Platform support:** Windows ✅ &nbsp;|&nbsp; Android ✅ (release-signed) &nbsp;|&nbsp; macOS 🔜 &nbsp;|&nbsp; Linux 🔜
+
+            For most Android phones, download the `app-arm64-v8a-release.apk` asset.
           draft: false
           prerelease: false
           overwrite_files: true

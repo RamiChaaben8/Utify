@@ -140,12 +140,9 @@ class UpdateService {
     final releasePage = (json['html_url'] as String?) ??
         AppConstants.githubReleasesPageUrl;
 
-    // Pick the asset for the current platform.
-    final assetName = _assetNameForPlatform();
-    final asset = assets.firstWhere(
-      (a) => (a as Map)['name'] == assetName,
-      orElse: () => null,
-    ) as Map<String, dynamic>?;
+    // Pick the asset for the current platform. Android releases contain
+    // split APKs; arm64 is the safest default for modern phones.
+    final asset = await _selectAsset(assets);
 
     final downloadUrl =
         (asset?['browser_download_url'] as String?) ?? '';
@@ -245,6 +242,8 @@ class UpdateService {
     final tempDir = await getTemporaryDirectory();
     final installerPath = '${tempDir.path}\\utify-setup.exe';
     final installerFile = File(installerPath);
+    int? expectedSize;
+    bool hasContentEncoding = false;
 
     try {
       final req = http.Request('GET', Uri.parse(result.downloadUrl));
@@ -257,7 +256,10 @@ class UpdateService {
             'Download failed (HTTP ${streamedResponse.statusCode}).');
       }
 
-      final total = streamedResponse.contentLength ?? 0;
+      expectedSize = streamedResponse.contentLength;
+      hasContentEncoding =
+          streamedResponse.headers['content-encoding']?.isNotEmpty ?? false;
+      final total = expectedSize ?? 0;
       var received = 0;
 
       final sink = installerFile.openWrite();
@@ -276,61 +278,44 @@ class UpdateService {
       throw UpdateException('Download failed: $e');
     }
 
-    // 2. Verify the file has a reasonable size.
+    // 2. Verify the file was fully downloaded.
     final downloadedSize = await installerFile.length();
     if (downloadedSize < 1024 * 100) {
       // Less than 100 KB is definitely corrupt for a Flutter app installer
       throw const UpdateException(
           'Downloaded installer appears corrupt (too small). Please try again.');
     }
+    if (!hasContentEncoding &&
+        expectedSize != null &&
+        downloadedSize != expectedSize) {
+      throw UpdateException(
+          'Downloaded installer is incomplete '
+          '($downloadedSize of $expectedSize bytes).');
+    }
 
     onProgress?.call(1.0);
 
-    // 3. Let a detached helper wait for this app to exit before running Setup.
-    // This avoids races on slower Windows machines and records install errors.
-    String psQuote(String value) => "'${value.replaceAll("'", "''")}'";
-    final installDir = File(Platform.resolvedExecutable).parent.path;
-    final exeName = File(Platform.resolvedExecutable).uri.pathSegments.last;
-    final targetExe = '$installDir\\$exeName';
-    final logPath = '${tempDir.path}\\utify-update.log';
-    final scriptPath = '${tempDir.path}\\utify-update.ps1';
-    final script = '''
-\$ErrorActionPreference = 'SilentlyContinue'
-try { Wait-Process -Id ${pid} -Timeout 10 -ErrorAction SilentlyContinue } catch {}
-Get-Process -Name 'utify' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 1
-\$setup = ${psQuote(installerPath)}
-\$installDir = ${psQuote(installDir)}
-\$targetExe = ${psQuote(targetExe)}
-\$logPath = ${psQuote(logPath)}
-\$setupArgs = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /DIR="' + \$installDir + '" /LOG="' + \$logPath + '"'
-\$result = Start-Process -FilePath \$setup -ArgumentList \$setupArgs -Wait -PassThru
-if (\$result.ExitCode -eq 0) {
-  Start-Process -FilePath \$targetExe
-} else {
-  Start-Process -FilePath \$setup -ArgumentList ('/DIR="' + \$installDir + '" /LOG="' + \$logPath + '"')
-}
-''';
-    final scriptFile = File(scriptPath);
-    await scriptFile.writeAsBytes(
-      [0xEF, 0xBB, 0xBF, ...utf8.encode(script)],
-      flush: true,
-    );
-    await Process.start(
-      'powershell.exe',
-      [
-        '-NoLogo',
-        '-NoProfile',
-        '-WindowStyle',
-        'Hidden',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        scriptPath,
-      ],
-      mode: ProcessStartMode.detached,
-      runInShell: false,
-    );
+    // 3. Start Setup before exiting. Inno Setup handles closing the app
+    // and relaunches Utify through the installer's [Run] entry.
+    final logPath = '${tempDir.path}\\utify-setup.log';
+    try {
+      await Process.start(
+        installerPath,
+        [
+          '/SILENT',
+          '/CLOSEAPPLICATIONS',
+          '/NORESTART',
+          '/LOG="$logPath"',
+        ],
+        mode: ProcessStartMode.detached,
+        runInShell: false,
+      );
+    } catch (error, stack) {
+      debugPrint('[Update] Failed to launch installer: $error');
+      debugPrint('[Update] Stack: $stack');
+      throw UpdateException(
+          'The update was downloaded, but the installer could not be started: $error');
+    }
     exit(0);
   }
 
@@ -392,12 +377,48 @@ if (\$result.ExitCode -eq 0) {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   /// Returns the platform-specific release asset filename.
-  String _assetNameForPlatform() {
-    if (Platform.isAndroid) return 'utify-android.apk';
-    if (Platform.isWindows) return AppConstants.windowsAssetName;
-    if (Platform.isMacOS)   return AppConstants.macosAssetName;
-    if (Platform.isLinux)   return AppConstants.linuxAssetName;
-    return '';
+  Future<Map<String, dynamic>?> _selectAsset(List<dynamic> assets) async {
+    final names = <String>[
+      if (Platform.isAndroid) ...await _androidAssetNames(),
+      if (Platform.isWindows) AppConstants.windowsAssetName,
+      if (Platform.isMacOS) AppConstants.macosAssetName,
+      if (Platform.isLinux) AppConstants.linuxAssetName,
+    ];
+
+    for (final name in names) {
+      for (final rawAsset in assets) {
+        final asset = rawAsset as Map<String, dynamic>;
+        if (asset['name'] == name) return asset;
+      }
+    }
+    return null;
+  }
+
+  Future<List<String>> _androidAssetNames() async {
+    const assetByAbi = <String, String>{
+      'arm64-v8a': 'app-arm64-v8a-release.apk',
+      'armeabi-v7a': 'app-armeabi-v7a-release.apk',
+      'x86_64': 'app-x86_64-release.apk',
+    };
+    try {
+      final supportedAbis = await _androidUpdateChannel
+          .invokeListMethod<String>('getSupportedAbis');
+      final names = <String>[];
+      for (final abi in supportedAbis ?? const <String>[]) {
+        final assetName = assetByAbi[abi];
+        if (assetName != null && !names.contains(assetName)) {
+          names.add(assetName);
+        }
+      }
+      if (names.isNotEmpty) return names;
+    } catch (error) {
+      debugPrint('[Update] Could not determine Android ABIs: $error');
+    }
+    return const [
+      'app-arm64-v8a-release.apk',
+      'app-armeabi-v7a-release.apk',
+      'app-x86_64-release.apk',
+    ];
   }
 
   /// Returns true if [latest] is strictly newer than [current].

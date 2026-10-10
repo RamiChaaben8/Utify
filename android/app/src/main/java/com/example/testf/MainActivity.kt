@@ -49,9 +49,11 @@ class MainActivity : AudioServiceActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATE_CHANNEL)
             .setMethodCallHandler { call, result ->
-                if (call.method != "installApk") {
-                    result.notImplemented()
-                } else {
+            when (call.method) {
+                "getSupportedAbis" -> {
+                    result.success(Build.SUPPORTED_ABIS.toList())
+                }
+                "installApk" -> {
                     val apk = call.argument<String>("path")?.let(::File)
                     if (apk == null || !apk.isFile) {
                         result.error("APK_MISSING", "Downloaded APK was not found", null)
@@ -75,7 +77,9 @@ class MainActivity : AudioServiceActivity() {
                         }
                     }
                 }
+                else -> result.notImplemented()
             }
+        }
 
         // ── MediaStore channel (audio insertion for API 29+) ─────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIASTORE_CHANNEL)

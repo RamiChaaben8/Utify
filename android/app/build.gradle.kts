@@ -7,6 +7,12 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val signingProperties = Properties()
+val signingPropertiesFile = rootProject.file("key.properties")
+if (signingPropertiesFile.exists()) {
+    signingPropertiesFile.inputStream().use { signingProperties.load(it) }
+}
+
 android {
     namespace = "com.example.testf"
     compileSdk = flutter.compileSdkVersion
@@ -34,14 +40,19 @@ android {
         versionName = flutter.versionName
     }
 
-    val signingProperties = Properties().apply {
-        val propsFile = rootProject.file("app/key.properties")
-        if (propsFile.exists()) propsFile.inputStream().use { load(it) }
-    }
-    val releaseKeyStore = rootProject.file("app/upload-keystore.jks")
-    if (signingProperties.isNotEmpty() && releaseKeyStore.exists()) {
+    if (signingProperties.isNotEmpty()) {
         signingConfigs.create("release") {
-            storeFile = releaseKeyStore
+            val configuredStoreFile = signingProperties.getProperty("storeFile")
+                ?: throw GradleException(
+                    "storeFile is required in android/key.properties"
+                )
+            val configuredStoreFilePath = rootProject.file(configuredStoreFile)
+            if (!configuredStoreFilePath.exists()) {
+                throw GradleException(
+                    "Release keystore was not found: $configuredStoreFilePath"
+                )
+            }
+            storeFile = configuredStoreFilePath
             storePassword = signingProperties.getProperty("storePassword")
             keyAlias = signingProperties.getProperty("keyAlias")
             keyPassword = signingProperties.getProperty("keyPassword")
@@ -50,8 +61,11 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (signingProperties.isNotEmpty() && releaseKeyStore.exists())
-                signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            signingConfig = if (signingProperties.isNotEmpty()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
