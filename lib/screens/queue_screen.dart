@@ -25,9 +25,8 @@ class QueueScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ps = ref.watch(playerProvider);
-    final queue = ps.queue;
-    final currentIndex = ps.currentIndex;
+    final queue = ref.watch(playerProvider.select((s) => s.queue));
+    final currentIndex = ref.watch(playerProvider.select((s) => s.currentIndex));
 
     final hasCurrent = currentIndex >= 0 && currentIndex < queue.length;
     final currentSong = hasCurrent ? queue[currentIndex] : null;

@@ -122,6 +122,14 @@ class DownloadService {
   final _changeController = StreamController<void>.broadcast();
   Stream<void> get onChanged => _changeController.stream;
 
+  DateTime _lastProgressNotify = DateTime.fromMillisecondsSinceEpoch(0);
+  void _notifyProgress() {
+    final now = DateTime.now();
+    if (now.difference(_lastProgressNotify) < const Duration(milliseconds: 300)) return;
+    _lastProgressNotify = now;
+    _notify();
+  }
+
   int _activeTasks = 0;
   static const int _maxConcurrent = 3;
 
@@ -702,7 +710,7 @@ class DownloadService {
           task.progress = totalBytes > 0
               ? (received / totalBytes).clamp(0.0, 1.0)
               : 0.02 + (received / (6 * 1024 * 1024)).clamp(0.0, 0.93);
-          if (!_changeController.isClosed) _changeController.add(null);
+          _notifyProgress();
 
           final now = DateTime.now();
           if (now.difference(lastLogTime).inSeconds >= 2) {
@@ -854,7 +862,7 @@ class DownloadService {
             task.progress = contentLength > 0
                 ? (received / contentLength).clamp(0.0, 1.0)
                 : 0.02 + (received / (6 * 1024 * 1024)).clamp(0.0, 0.93);
-            if (!_changeController.isClosed) _changeController.add(null);
+            _notifyProgress();
 
             final now = DateTime.now();
             if (now.difference(lastLogTime).inSeconds >= 2) {

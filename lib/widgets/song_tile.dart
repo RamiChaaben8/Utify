@@ -55,10 +55,13 @@ class SongTile extends ConsumerWidget {
     // Resolve the stream while this song is visible so tapping it does not
     // need to wait for YouTube's manifest request.
     ref.read(youtubeServiceProvider).prefetchUrl(song.id);
-    final dlState = ref.watch(downloadProvider);
-    final isDownloaded = dlState.isDownloaded(song.id);
-    final isDownloading = dlState.isDownloading(song.id);
-    final progress = dlState.progressFor(song.id);
+    final (isDownloaded, isDownloading, progressStep) =
+        ref.watch(downloadProvider.select((s) => (
+              s.isDownloaded(song.id),
+              s.isDownloading(song.id),
+              (s.progressFor(song.id) * 20).round(), // 5% steps
+            )));
+    final progress = progressStep / 20.0;
 
     final theme = context.appTheme;
 

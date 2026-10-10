@@ -55,8 +55,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerProvider);
-    final song = playerState.currentSong;
+    final song = ref.watch(playerProvider.select((s) => s.currentSong));
+    final sourcePlaylist = ref.watch(playerProvider.select((s) => s.sourcePlaylist));
     final lyrics = ref.watch(lyricsProvider);
 
     if (song == null) {
@@ -71,7 +71,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       });
     }
 
-    final screenH = MediaQuery.of(context).size.height;
+    final screenH = MediaQuery.sizeOf(context).height;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -118,14 +118,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   SizedBox(
                     height: screenH,
                     child: _PlayerPage(
-                      playerState: playerState,
                       lyrics: lyrics,
                       song: song,
                     ),
                   ),
 
                   // ── Page 2: lyrics panel ─────────────────────────────
-                  _LyricsPage(lyrics: lyrics, position: playerState.position),
+                  _LyricsPage(lyrics: lyrics),
                 ],
               ),
             ),
@@ -140,7 +139,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               bottom: false,
               child: _TopBar(
                 song: song,
-                sourcePlaylist: playerState.sourcePlaylist,
+                sourcePlaylist: sourcePlaylist,
               ),
             ),
           ),
@@ -277,9 +276,10 @@ class _SongActionsSheet extends ConsumerWidget {
           ),
           if (!song.isLocal) ...[
             Builder(builder: (ctx) {
-              final dlState = ref.watch(downloadProvider);
-              final isDownloaded = dlState.isDownloaded(song.id);
-              final isDownloading = dlState.isDownloading(song.id);
+              final (isDownloaded, isDownloading) = ref.watch(downloadProvider.select((s) => (
+                    s.isDownloaded(song.id),
+                    s.isDownloading(song.id),
+                  )));
               
               if (isDownloaded) {
                 return ListTile(
@@ -320,12 +320,10 @@ class _SongActionsSheet extends ConsumerWidget {
 // ─── Page 1: player controls on top of video ──────────────────────────────────
 
 class _PlayerPage extends ConsumerWidget {
-  final PlayerState playerState;
   final LyricsState lyrics;
   final Song song;
 
   const _PlayerPage({
-    required this.playerState,
     required this.lyrics,
     required this.song,
   });
@@ -334,17 +332,11 @@ class _PlayerPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(libraryProvider);
     final isLiked = library.isLiked(song.id);
-
-    // Find current lyric line
-    String? currentLine;
-    if (lyrics.hasLyrics) {
-      final pos = playerState.position;
-      LyricLine? active;
-      for (final line in lyrics.lines) {
-        if (pos >= line.start) active = line;
-      }
-      currentLine = active?.text;
-    }
+    final shuffle = ref.watch(playerProvider.select((s) => s.shuffle));
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final isLoading = ref.watch(playerProvider.select((s) => s.isLoading));
+    final loopMode = ref.watch(playerProvider.select((s) => s.loopMode));
+    final error = ref.watch(playerProvider.select((s) => s.error));
 
     return Column(
       children: [
@@ -352,27 +344,7 @@ class _PlayerPage extends ConsumerWidget {
         const Expanded(flex: 3, child: SizedBox.shrink()),
 
         // ── Current lyric line ─────────────────────────────────────
-        if (currentLine != null && currentLine.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: Text(
-              currentLine,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                height: 1.3,
-                shadows: [
-                  Shadow(
-                    color: Colors.black,
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+        _CurrentLyricLine(lyrics: lyrics),
 
         // ── Song info + like ───────────────────────────────────────
         Padding(
@@ -442,13 +414,9 @@ class _PlayerPage extends ConsumerWidget {
         const SizedBox(height: 12),
 
         // ── Seek bar ───────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: SeekBar(
-            position: playerState.position,
-            duration: playerState.duration,
-            onSeek: (pos) => ref.read(playerProvider.notifier).seek(pos),
-          ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: _NowPlayingSeekBar(),
         ),
 
         const SizedBox(height: 4),
@@ -462,7 +430,7 @@ class _PlayerPage extends ConsumerWidget {
               IconButton(
                 icon: Icon(
                   Icons.shuffle,
-                  color: playerState.shuffle
+                  color: shuffle
                       ? const Color(0xFF1DB954)
                       : const Color(0xFFB3B3B3),
                   size: 22,
@@ -477,8 +445,8 @@ class _PlayerPage extends ConsumerWidget {
                     ref.read(playerProvider.notifier).skipToPrevious(),
               ),
               _PlayPauseButton(
-                isPlaying: playerState.isPlaying,
-                isLoading: playerState.isLoading,
+                isPlaying: isPlaying,
+                isLoading: isLoading,
                 onPressed: () =>
                     ref.read(playerProvider.notifier).togglePlayPause(),
               ),
@@ -489,10 +457,10 @@ class _PlayerPage extends ConsumerWidget {
               ),
               IconButton(
                 icon: Icon(
-                  playerState.loopMode == LoopMode.one
+                  loopMode == LoopMode.one
                       ? Icons.repeat_one
                       : Icons.repeat,
-                  color: playerState.loopMode != LoopMode.off
+                  color: loopMode != LoopMode.off
                       ? const Color(0xFF1DB954)
                       : const Color(0xFFB3B3B3),
                   size: 22,
@@ -527,7 +495,7 @@ class _PlayerPage extends ConsumerWidget {
         ),
 
         // Error display
-        if (playerState.error != null)
+        if (error != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Container(
@@ -542,7 +510,7 @@ class _PlayerPage extends ConsumerWidget {
                   const Icon(Icons.error_outline, color: Colors.red, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(playerState.error!,
+                    child: Text(error,
                         style:
                             const TextStyle(color: Colors.red, fontSize: 12)),
                   ),
@@ -562,6 +530,64 @@ class _PlayerPage extends ConsumerWidget {
   }
 }
 
+class _CurrentLyricLine extends ConsumerWidget {
+  final LyricsState lyrics;
+  const _CurrentLyricLine({required this.lyrics});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!lyrics.hasLyrics) return const SizedBox.shrink();
+
+    final pos = ref.watch(playerProvider.select((s) => s.position));
+    LyricLine? active;
+    for (final line in lyrics.lines) {
+      if (pos >= line.start) active = line;
+    }
+    final currentLine = active?.text;
+
+    if (currentLine == null || currentLine.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      child: Text(
+        currentLine,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          height: 1.3,
+          shadows: [
+            Shadow(
+              color: Colors.black,
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+class _NowPlayingSeekBar extends ConsumerWidget {
+  const _NowPlayingSeekBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final position = ref.watch(playerProvider.select((s) => s.position));
+    final duration = ref.watch(playerProvider.select((s) => s.duration));
+
+    return SeekBar(
+      position: position,
+      duration: duration,
+      onSeek: (pos) => ref.read(playerProvider.notifier).seek(pos),
+    );
+  }
+}
+
 class _DownloadButton extends ConsumerWidget {
   final Song song;
 
@@ -569,10 +595,13 @@ class _DownloadButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final downloads = ref.watch(downloadProvider);
-    final isDownloading = downloads.isDownloading(song.id);
-    final isDownloaded = downloads.isDownloaded(song.id);
-    final progress = downloads.progressFor(song.id);
+    final (isDownloaded, isDownloading, progressStep) =
+        ref.watch(downloadProvider.select((s) => (
+              s.isDownloaded(song.id),
+              s.isDownloading(song.id),
+              (s.progressFor(song.id) * 20).round(), // 5% steps
+            )));
+    final progress = progressStep / 20.0;
 
     if (isDownloading) {
       return SizedBox(
@@ -621,11 +650,11 @@ class _DownloadButton extends ConsumerWidget {
 
 class _LyricsPage extends ConsumerWidget {
   final LyricsState lyrics;
-  final Duration position;
-  const _LyricsPage({required this.lyrics, required this.position});
+  const _LyricsPage({required this.lyrics});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final position = ref.watch(playerProvider.select((s) => s.position));
     return Container(
       color: Colors.black,
       child: Column(

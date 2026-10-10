@@ -29,22 +29,16 @@ class MiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playerState = ref.watch(playerProvider);
-    final song = playerState.currentSong;
+    final song = ref.watch(playerProvider.select((s) => s.currentSong));
 
     if (song == null) return const SizedBox.shrink();
 
-    final queue = playerState.queue;
-    final idx = playerState.currentIndex;
+    final queue = ref.watch(playerProvider.select((s) => s.queue));
+    final idx = ref.watch(playerProvider.select((s) => s.currentIndex));
+    final isLoading = ref.watch(playerProvider.select((s) => s.isLoading));
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final nextSong =
         queue.length > 1 ? queue[(idx + 1) % queue.length] : null;
-
-    // Progress fraction (0.0 – 1.0); clamp to avoid NaN when duration is zero
-    final progress = playerState.duration.inMilliseconds > 0
-        ? (playerState.position.inMilliseconds /
-                playerState.duration.inMilliseconds)
-            .clamp(0.0, 1.0)
-        : 0.0;
 
     final theme = context.appTheme;
     return GestureDetector(
@@ -62,14 +56,7 @@ class MiniPlayer extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // ── Thin green progress bar ──────────────────────────────
-            SizedBox(
-              height: 2,
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: theme.shadow,
-                valueColor: AlwaysStoppedAnimation<Color>(theme.button),
-              ),
-            ),
+            const _MiniProgress(),
 
             // ── Content row ──────────────────────────────────────────
             SizedBox(
@@ -168,7 +155,7 @@ class MiniPlayer extends ConsumerWidget {
                   ),
 
                   // ── Controls ───────────────────────────────────────
-                  if (playerState.isLoading)
+                  if (isLoading)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: SizedBox(
@@ -190,7 +177,7 @@ class MiniPlayer extends ConsumerWidget {
                     ),
                     // Play / Pause
                     _MiniButton(
-                      icon: playerState.isPlaying
+                      icon: isPlaying
                           ? Icons.pause
                           : Icons.play_arrow,
                       size: 28,
@@ -265,3 +252,26 @@ class _MiniButton extends StatelessWidget {
     );
   }
 }
+
+class _MiniProgress extends ConsumerWidget {
+  const _MiniProgress();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(playerProvider.select((s) =>
+        s.duration.inMilliseconds > 0
+            ? (s.position.inMilliseconds / s.duration.inMilliseconds).clamp(0.0, 1.0)
+            : 0.0));
+    final theme = context.appTheme;
+
+    return SizedBox(
+      height: 2,
+      child: LinearProgressIndicator(
+        value: progress,
+        backgroundColor: theme.shadow,
+        valueColor: AlwaysStoppedAnimation<Color>(theme.button),
+      ),
+    );
+  }
+}
+

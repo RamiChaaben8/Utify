@@ -83,7 +83,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final searchState = ref.watch(searchProvider);
-    final playerState = ref.watch(playerProvider);
+    final currentPlayingId = ref.watch(playerProvider.select((s) => s.currentSong?.id));
+    final isPlayerPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
     final hasQuery =
         _controller.text.trim().isNotEmpty || searchState.results.isNotEmpty;
 
@@ -207,10 +208,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 delegate: SliverChildBuilderDelegate(
                   (ctx, i) {
                     final song = searchState.results[i];
-                    final isCurrent = playerState.currentSong?.id == song.id;
+                    final isCurrent = currentPlayingId == song.id;
                     return _VideoCard(
                       song: song,
-                      isCurrentlyPlaying: isCurrent && playerState.isPlaying,
+                      isCurrentlyPlaying: isCurrent && isPlayerPlaying,
                       isSelected: isCurrent,
                       onTap: () => _playSong(song),
                     );

@@ -101,17 +101,30 @@ class DownloadState {
 class DownloadNotifier extends StateNotifier<DownloadState> {
   final DownloadService _service;
   StreamSubscription<void>? _sub;
+  List<DownloadIndexEntry> _cachedDownloaded = const [];
+  int _lastTaskCount = -1;
 
   DownloadNotifier(this._service) : super(const DownloadState()) {
+    _cachedDownloaded = DownloadIndexService.instance.getAll();
     _sub = _service.onChanged.listen((_) => _rebuild());
-    _rebuild();
+    _rebuild(forceDownloaded: true);
   }
 
-  void _rebuild() {
+  void _rebuild({bool forceDownloaded = false}) {
     if (!mounted) return;
+    final currentTasks = _service.tasksCopy;
+    final taskCountChanged = currentTasks.length != _lastTaskCount;
+    _lastTaskCount = currentTasks.length;
+
+    // Only re-fetch all downloaded entries from Hive when a task finishes/removes,
+    // or when explicitly requested (e.g. initial load, delete, retry).
+    if (forceDownloaded || taskCountChanged) {
+      _cachedDownloaded = DownloadIndexService.instance.getAll();
+    }
+
     state = DownloadState(
-      tasks:      Map.unmodifiable(_service.tasksCopy),
-      downloaded: DownloadIndexService.instance.getAll(),
+      tasks:      Map.unmodifiable(currentTasks),
+      downloaded: _cachedDownloaded,
     );
   }
 
