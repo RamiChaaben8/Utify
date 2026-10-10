@@ -25,9 +25,7 @@
 // ============================================================
 
 import 'dart:async';
-import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -39,6 +37,7 @@ import '../services/audio_player_service.dart';
 import '../services/youtube_service.dart';
 import '../services/sync_service.dart';
 import '../services/firestore_service.dart';
+import '../platform/permissions.dart';
 import 'library_provider.dart';
 import 'sync_provider.dart';
 
@@ -576,12 +575,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       state = state.copyWith(isActiveDevice: true);
       unawaited(_sync.service.claimAsActiveDevice().catchError((_) {}));
     }
-    _doPlaySong(
+    unawaited(_doPlaySong(
       song,
       queue: queue,
       sourcePlaylist: sourcePlaylist,
       suppressRemoteCommand: suppressRemoteCommand,
-    );
+    ));
   }
 
   /// Play a song from the local download index.
@@ -604,12 +603,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     playSong(song, queue: queue);
   }
 
-  void _doPlaySong(
+  Future<void> _doPlaySong(
     Song song, {
     List<Song>? queue,
     Playlist? sourcePlaylist,
     bool suppressRemoteCommand = false,
-  }) {
+  }) async {
+    await requestNotificationPermission();
     state = state.copyWith(
       currentSong: song,
       isLoading: true,
@@ -644,6 +644,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> play() async {
     if (_sync.service.isActive) {
+      await requestNotificationPermission();
       await _service.play();
       state = state.copyWith(isPlaying: true);
       _handler.updateCurrentSong();

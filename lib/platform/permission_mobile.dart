@@ -14,7 +14,13 @@ import 'package:flutter/services.dart';
 
 const _channel = MethodChannel('com.example.testf/permissions');
 
-Future<void> requestNotificationPermission() async {
+Future<void>? _notificationPermissionRequest;
+
+Future<void> requestNotificationPermission() {
+  return _notificationPermissionRequest ??= _requestNotificationPermission();
+}
+
+Future<void> _requestNotificationPermission() async {
   try {
     await _channel.invokeMethod<void>('requestNotificationPermission');
   } catch (_) {

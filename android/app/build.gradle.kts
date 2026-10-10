@@ -66,6 +66,13 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // Keep media plugin entry points available in release builds.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
