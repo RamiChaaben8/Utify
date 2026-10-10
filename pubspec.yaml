@@ -2,7 +2,7 @@ name: utify
 description: "Utify music streaming app."
 publish_to: 'none'
 
-version: 1.6.2+1006002
+version: 1.6.3+1006003
 
 environment:
   sdk: ^3.5.0
