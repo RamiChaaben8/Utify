@@ -96,6 +96,15 @@ class MainActivity : AudioServiceActivity() {
                         val uri = call.argument<String>("uri") ?: ""
                         result.success(MediaStoreHelper.uriExists(applicationContext, uri))
                     }
+                    "copyUriToFile" -> {
+                        val uri = call.argument<String>("uri") ?: ""
+                        val targetPath = call.argument<String>("targetPath") ?: ""
+                        result.success(
+                            MediaStoreHelper.copyUriToFile(
+                                applicationContext, uri, File(targetPath)
+                            )
+                        )
+                    }
                     else -> result.notImplemented()
                 }
             }

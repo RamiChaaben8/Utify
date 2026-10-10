@@ -66,6 +66,11 @@ class DownloadIndexEntry extends HiveObject {
   @HiveField(10)
   List<String> playlistIds;
 
+  /// Optional public MediaStore URI for the exported copy on Android.
+  /// [path] remains the canonical app-private playback path.
+  @HiveField(11)
+  String? publicUri;
+
   DownloadIndexEntry({
     required this.videoId,
     required this.path,
@@ -78,6 +83,7 @@ class DownloadIndexEntry extends HiveObject {
     this.durationMs = 0,
     DateTime? downloadedAt,
     List<String>? playlistIds,
+    this.publicUri,
   })  : downloadedAt = downloadedAt ?? DateTime.now(),
         playlistIds = playlistIds ?? [];
 }

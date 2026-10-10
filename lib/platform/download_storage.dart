@@ -90,7 +90,7 @@ String buildDownloadBasename({
   required String videoId,
 }) {
   final safeArtist = sanitiseFilename(artist);
-  final safeTitle  = sanitiseFilename(title);
+  final safeTitle = sanitiseFilename(title);
   return '$safeArtist - $safeTitle [$videoId]';
 }
 
@@ -306,6 +306,28 @@ Future<bool> mediaStoreUriExists(String uri) async {
     );
     return result ?? false;
   } catch (_) {
+    return false;
+  }
+}
+
+/// Copies a MediaStore-owned file into app-private storage for reliable
+/// playback by audio backends that do not support content:// directly.
+Future<bool> copyMediaStoreUriToFile({
+  required String uri,
+  required String targetPath,
+}) async {
+  if (!uri.startsWith('content://')) return false;
+  try {
+    final result = await _mediaStoreChannel.invokeMethod<bool>(
+      'copyUriToFile',
+      {'uri': uri, 'targetPath': targetPath},
+    );
+    return result ?? false;
+  } on PlatformException catch (e) {
+    debugPrint('[DownloadStorage] copyUriToFile failed: ${e.message}');
+    return false;
+  } catch (e) {
+    debugPrint('[DownloadStorage] copyUriToFile error: $e');
     return false;
   }
 }

@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.MediaStore
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 
 /**
  * Handles MediaStore audio insertions for Android API 29+.
@@ -62,7 +63,9 @@ object MediaStoreHelper {
         }
 
         return try {
-            resolver.openOutputStream(uri)?.use { out ->
+            val output = resolver.openOutputStream(uri)
+                ?: throw IllegalStateException("MediaStore returned no output stream")
+            output.use { out ->
                 FileInputStream(tempFile).use { input ->
                     input.copyTo(out)
                 }
@@ -70,7 +73,10 @@ object MediaStoreHelper {
             // Mark as complete.
             values.clear()
             values.put(MediaStore.Audio.Media.IS_PENDING, 0)
-            resolver.update(uri, values, null, null)
+            val updated = resolver.update(uri, values, null, null)
+            if (updated != 1) {
+                throw IllegalStateException("MediaStore entry could not be finalized")
+            }
             // Clean up the temp file.
             tempFile.delete()
             uri.toString()
@@ -96,6 +102,21 @@ object MediaStoreHelper {
                 null,
             )?.use { cursor -> cursor.count > 0 } ?: false
         } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun copyUriToFile(context: Context, uriString: String, target: File): Boolean {
+        return try {
+            val source = context.contentResolver.openInputStream(Uri.parse(uriString))
+                ?: return false
+            target.parentFile?.mkdirs()
+            source.use { input ->
+                FileOutputStream(target).use { output -> input.copyTo(output) }
+            }
+            target.isFile && target.length() > 0L
+        } catch (_: Exception) {
+            if (target.exists()) target.delete()
             false
         }
     }

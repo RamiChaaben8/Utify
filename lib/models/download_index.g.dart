@@ -14,24 +14,25 @@ class DownloadIndexEntryAdapter extends TypeAdapter<DownloadIndexEntry> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return DownloadIndexEntry(
-      videoId:      fields[0]  as String,
-      path:         fields[1]  as String,
+      videoId: fields[0] as String,
+      path: fields[1] as String,
       thumbnailPath: (fields[2] as String?) ?? '',
-      format:       (fields[3]  as String?) ?? 'm4a',
-      bitrate:      (fields[4]  as int?)    ?? 0,
-      sizeBytes:    (fields[5]  as int?)    ?? 0,
-      title:        (fields[6]  as String?) ?? '',
-      artist:       (fields[7]  as String?) ?? '',
-      durationMs:   (fields[8]  as int?)    ?? 0,
-      downloadedAt: (fields[9]  as DateTime?) ?? DateTime.now(),
-      playlistIds:  (fields[10] as List?)?.cast<String>() ?? [],
+      format: (fields[3] as String?) ?? 'm4a',
+      bitrate: (fields[4] as int?) ?? 0,
+      sizeBytes: (fields[5] as int?) ?? 0,
+      title: (fields[6] as String?) ?? '',
+      artist: (fields[7] as String?) ?? '',
+      durationMs: (fields[8] as int?) ?? 0,
+      downloadedAt: (fields[9] as DateTime?) ?? DateTime.now(),
+      playlistIds: (fields[10] as List?)?.cast<String>() ?? [],
+      publicUri: fields[11] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, DownloadIndexEntry obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.videoId)
       ..writeByte(1)
@@ -53,7 +54,9 @@ class DownloadIndexEntryAdapter extends TypeAdapter<DownloadIndexEntry> {
       ..writeByte(9)
       ..write(obj.downloadedAt)
       ..writeByte(10)
-      ..write(obj.playlistIds);
+      ..write(obj.playlistIds)
+      ..writeByte(11)
+      ..write(obj.publicUri);
   }
 
   @override

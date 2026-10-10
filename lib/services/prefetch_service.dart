@@ -35,7 +35,7 @@ import 'youtube_service.dart';
 const int kPrefetchDepth = 1;
 
 /// Upper bound on simultaneous prefetch tasks.
-const int kPrefetchMaxConcurrent = 2;
+const int kPrefetchMaxConcurrent = 1;
 
 class PrefetchService {
   PrefetchService(this._youtube);
@@ -172,8 +172,7 @@ class PrefetchService {
       if (generation != _generation) return;
 
       // ── Stage 2: audio file ────────────────────────────────────────────
-      final file =
-          await AudioCacheService.instance.download(song.id, url);
+      final file = await AudioCacheService.instance.download(song.id, url);
       if (file == null) return;
       if (generation != _generation) {
         // The queue moved on while we were downloading. The file is still

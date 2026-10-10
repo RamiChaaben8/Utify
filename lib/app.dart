@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'providers/auth_provider.dart';
+import 'dart:async';
 import 'dart:io';
 
 import 'screens/search_screen.dart';
@@ -358,6 +359,8 @@ class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
   int _currentIndex = 0;
   final Set<int> _visited = <int>{0};
+  DateTime? _lastResumeMaintenance;
+  bool _resumeMaintenanceRunning = false;
   static const _androidLifecycleChannel =
       MethodChannel('com.example.testf/lifecycle');
 
@@ -369,8 +372,8 @@ class _AppShellState extends ConsumerState<AppShell>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.listenManual(connectivityProvider, (prev, next) {
         final wasOnline = prev?.isOnline ?? true;
-        final isOnline  = next.isOnline;
-        final sync      = ref.read(syncProvider.notifier);
+        final isOnline = next.isOnline;
+        final sync = ref.read(syncProvider.notifier);
         sync.setOfflineMode(!isOnline);
         if (!wasOnline && isOnline) {
           // Reconnect: re-subscribe to Firestore; let remote state win.
@@ -396,18 +399,20 @@ class _AppShellState extends ConsumerState<AppShell>
       });
     }
     // Request storage permission then scan for local music on first frame
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _requestStoragePermission();
-      if (mounted) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(seconds: 2), () async {
+        if (!mounted) return;
+        await _requestStoragePermission();
+        if (!mounted) return;
         ref.read(localMusicProvider.notifier).scan();
         final uid = ref.read(authServiceProvider).currentUser?.uid;
         if (uid != null) {
-          ref.read(presenceProvider.notifier).start(
+          unawaited(ref.read(presenceProvider.notifier).start(
                 uid,
                 playerState: ref.read(playerProvider),
-              );
+              ));
         }
-      }
+      });
     });
   }
 
@@ -428,14 +433,28 @@ class _AppShellState extends ConsumerState<AppShell>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      ref.read(localMusicProvider.notifier).scan();
-      DownloadIndexService.instance.runStartupMaintenance();
+      final now = DateTime.now();
+      final shouldMaintain = _lastResumeMaintenance == null ||
+          now.difference(_lastResumeMaintenance!) > const Duration(minutes: 10);
+      if (shouldMaintain && !_resumeMaintenanceRunning) {
+        _resumeMaintenanceRunning = true;
+        _lastResumeMaintenance = now;
+        unawaited(Future<void>.delayed(const Duration(seconds: 2), () async {
+          try {
+            if (!mounted) return;
+            ref.read(localMusicProvider.notifier).scan();
+            await DownloadIndexService.instance.runStartupMaintenance();
+          } finally {
+            _resumeMaintenanceRunning = false;
+          }
+        }));
+      }
       final uid = ref.read(authServiceProvider).currentUser?.uid;
       if (uid != null) {
-        ref.read(presenceProvider.notifier).start(
+        unawaited(ref.read(presenceProvider.notifier).start(
               uid,
               playerState: ref.read(playerProvider),
-            );
+            ));
       }
     }
     if (state == AppLifecycleState.detached) {
@@ -507,8 +526,8 @@ class _AppShellState extends ConsumerState<AppShell>
         builder: (dialogContext) => StatefulBuilder(
           builder: (ctx, setState) => AlertDialog(
             backgroundColor: const Color(0xFF1A1A1A),
-            title:
-                const Text('New Playlist', style: TextStyle(color: Colors.white)),
+            title: const Text('New Playlist',
+                style: TextStyle(color: Colors.white)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

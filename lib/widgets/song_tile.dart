@@ -64,14 +64,6 @@ class _SongTileState extends ConsumerState<SongTile> {
     final trailing = widget.trailing;
     final noTrailing = widget.noTrailing;
 
-    final (isDownloaded, isDownloading, progressStep) =
-        ref.watch(downloadProvider.select((s) => (
-              s.isDownloaded(song.id),
-              s.isDownloading(song.id),
-              (s.progressFor(song.id) * 20).round(), // 5% steps
-            )));
-    final progress = progressStep / 20.0;
-
     final theme = context.appTheme;
 
     final titleColor = isSelected
@@ -94,8 +86,7 @@ class _SongTileState extends ConsumerState<SongTile> {
       song: song,
       currentPlaylist: currentPlaylist,
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         onTap: onTap,
         leading: Stack(
           clipBehavior: Clip.none,
@@ -118,47 +109,7 @@ class _SongTileState extends ConsumerState<SongTile> {
                       color: theme.nowPlayingAccent, size: 22),
                 ),
               ),
-            // Downloaded tick badge (bottom-right corner)
-            if (isDownloaded && !isPlaying)
-              Positioned(
-                right: -3,
-                bottom: -3,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: theme.button,
-                    shape: BoxShape.circle,
-                    border:
-                        Border.all(color: theme.main, width: 1.5),
-                  ),
-                  child: Icon(Icons.check,
-                      color: theme.onButtonFill, size: 11),
-                ),
-              ),
-            // Downloading spinner badge (bottom-right corner)
-            if (isDownloading && !isDownloaded)
-              Positioned(
-                right: -3,
-                bottom: -3,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: theme.main,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: theme.button, width: 1.5),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.5,
-                      value: progress > 0 ? progress : null,
-                      color: theme.button,
-                    ),
-                  ),
-                ),
-              ),
+            if (!isPlaying) _SongDownloadBadge(songId: song.id),
           ],
         ),
         title: Text(
@@ -196,6 +147,7 @@ class _SongTileState extends ConsumerState<SongTile> {
         ),
       );
     }
+
     return AppThumbnail(
       imageUrl: widget.song.thumbnailUrl,
       videoId: widget.song.id,
@@ -229,5 +181,51 @@ class _SongTileState extends ConsumerState<SongTile> {
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     if (d.inHours > 0) return '${d.inHours}:$m:$s';
     return '$m:$s';
+  }
+}
+
+class _SongDownloadBadge extends ConsumerWidget {
+  final String songId;
+
+  const _SongDownloadBadge({required this.songId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (isDownloaded, isDownloading, progressStep) =
+        ref.watch(downloadProvider.select((s) => (
+              s.isDownloaded(songId),
+              s.isDownloading(songId),
+              (s.progressFor(songId) * 20).round(),
+            )));
+    if (!isDownloaded && !isDownloading) return const SizedBox.shrink();
+
+    final theme = context.appTheme;
+    final progress = progressStep / 20.0;
+    return Positioned(
+      right: -3,
+      bottom: -3,
+      child: Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          color: isDownloaded ? theme.button : theme.main,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isDownloaded ? theme.main : theme.button,
+            width: 1.5,
+          ),
+        ),
+        child: isDownloaded
+            ? Icon(Icons.check, color: theme.onButtonFill, size: 11)
+            : Padding(
+                padding: const EdgeInsets.all(2),
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  value: progress > 0 ? progress : null,
+                  color: theme.button,
+                ),
+              ),
+      ),
+    );
   }
 }

@@ -26,12 +26,11 @@ import 'audio_cache_service.dart';
 import 'download_index_service.dart';
 import 'prefetch_service.dart';
 import 'youtube_service.dart';
-
-
+import '../platform/download_storage.dart';
+import 'package:path_provider/path_provider.dart';
 
 class AudioPlayerService {
   static const _streamAttemptTimeout = Duration(seconds: 7);
-  static const _localSourceTimeout = Duration(seconds: 3);
   static const _maxStreamsPerLoad = 3;
 
   /// Private audio file cache is an Android-only feature. Desktop keeps the
@@ -404,7 +403,7 @@ class AudioPlayerService {
     // Never trigger stream URL resolution for a downloaded song.
     final downloadEntry = DownloadIndexService.instance.get(song.id);
     String? localPath;
-    bool    sourceIsDownload = false;
+    bool sourceIsDownload = false;
 
     if (downloadEntry != null) {
       // Verify the file/URI still exists before using it.
@@ -419,8 +418,22 @@ class AudioPlayerService {
       } catch (_) {}
 
       if (exists) {
-        localPath        = downloadEntry.path;
+        localPath = downloadEntry.path;
         sourceIsDownload = true;
+        if (localPath.startsWith('content://')) {
+          final appDir = await getApplicationSupportDirectory();
+          final migratedPath =
+              '${appDir.path}/downloads/legacy_${song.id}.${downloadEntry.format}';
+          final copied = await copyMediaStoreUriToFile(
+            uri: localPath,
+            targetPath: migratedPath,
+          );
+          if (copied) {
+            downloadEntry.path = migratedPath;
+            await DownloadIndexService.instance.put(downloadEntry);
+            localPath = migratedPath;
+          }
+        }
       } else {
         // File is gone — remove from index and fall through to streaming.
         debugPrint('[AudioPlayer] downloaded file missing for ${song.id}, '
@@ -445,8 +458,8 @@ class AudioPlayerService {
         }
         await _player.setAudioSource(
           AudioSource.file(localPath, tag: mediaItem),
-          preload: true,
-        ).timeout(_localSourceTimeout);
+          preload: false,
+        );
       } else if (localPath != null) {
         // ① Downloaded file via MediaStore URI (Android API 29+).
         if (kDebugMode) {
@@ -456,11 +469,12 @@ class AudioPlayerService {
         try {
           await _player.setAudioSource(
             AudioSource.uri(Uri.parse(localPath), tag: mediaItem),
-            preload: true,
+            preload: false,
           );
           mediaStoreOk = true;
         } catch (uriErr) {
-          debugPrint('[AudioPlayer] MediaStore URI failed for ${song.id}: $uriErr');
+          debugPrint(
+              '[AudioPlayer] MediaStore URI failed for ${song.id}: $uriErr');
           final connectivity = await Connectivity().checkConnectivity();
           final canReachNetwork = connectivity.any(
             (result) => result != ConnectivityResult.none,
@@ -485,14 +499,15 @@ class AudioPlayerService {
         }
       } else {
         // ② Private audio cache (Android) or ③ stream URL.
-        final loaded = await _openRemoteSource(song, mediaItem, mySerial, attemptedUrls);
+        final loaded =
+            await _openRemoteSource(song, mediaItem, mySerial, attemptedUrls);
         if (_loadSerial != mySerial) return;
         if (loaded == null) {
           throw YoutubeServiceException(
             'No compatible audio stream could be opened for ${song.title}.',
           );
         }
-        activeStreamUrl  = loaded.streamUrl;
+        activeStreamUrl = loaded.streamUrl;
         _loadedFromCache = loaded.fromCache;
       }
 
@@ -637,7 +652,8 @@ class AudioPlayerService {
         } catch (error) {
           // A file we believe is complete failed to decode — almost always a
           // truncated write. Delete it and fall through to the network.
-          debugPrint('[AudioPlayer] cache file unusable for ${song.id}: $error');
+          debugPrint(
+              '[AudioPlayer] cache file unusable for ${song.id}: $error');
           unawaited(AudioCacheService.instance.delete(song.id));
         }
       }
@@ -754,8 +770,7 @@ class AudioPlayerService {
 
   /// Waits for a playback-time download to finish, records it in the LRU index
   /// and then trims the cache back under the user's limit.
-  Future<void> _watchCacheFill(
-      LockCachingAudioSource source, Song song) async {
+  Future<void> _watchCacheFill(LockCachingAudioSource source, Song song) async {
     try {
       await for (final progress in source.downloadProgressStream) {
         if (progress < 1.0) continue;
@@ -781,7 +796,9 @@ class AudioPlayerService {
 
   /// Precache the next queue item's artwork, throttled to once per track.
   void _maybePrecacheArtwork() {
-    if (_queue.length <= 1 || _currentIndex < 0 || _currentIndex >= _queue.length) {
+    if (_queue.length <= 1 ||
+        _currentIndex < 0 ||
+        _currentIndex >= _queue.length) {
       return;
     }
     final nextSong = _queue[(_currentIndex + 1) % _queue.length];
@@ -811,7 +828,8 @@ class AudioPlayerService {
 
   /// Logs tap-to-first-audio exactly once per load, tagged with whether the
   /// audio came from a download, the private cache, or the network.
-  void _watchFirstAudio(Stopwatch watch, String videoId, {bool fromDownload = false}) {
+  void _watchFirstAudio(Stopwatch watch, String videoId,
+      {bool fromDownload = false}) {
     _firstAudioSub?.cancel();
     _firstAudioSub = _player.playerStateStream.listen((ps) {
       if (!ps.playing) return;
@@ -843,7 +861,10 @@ class AudioPlayerService {
     // A file served from the private cache that fails to play is a bad write,
     // not a network problem. Drop it, forget the URL and reload from the
     // network exactly once. `_cacheRetryUsed` stops this from looping.
-    if (_loadedFromCache && !_cacheRetryUsed && _cacheEnabled && isRemoteSource) {
+    if (_loadedFromCache &&
+        !_cacheRetryUsed &&
+        _cacheEnabled &&
+        isRemoteSource) {
       _cacheRetryUsed = true;
       _recoveringSerial = serial;
       final videoId = _queue[index].id;
@@ -890,7 +911,6 @@ class AudioPlayerService {
       }
     }());
   }
-
 
   /// Write the resolved stream URL back into the Song stored in Hive
   /// (liked_songs / recently_played) so cold starts can use it directly.

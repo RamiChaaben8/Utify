@@ -13,7 +13,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shimmer/shimmer.dart';
 
 import '../models/song.dart';
 import '../models/ytmusic_models.dart';
@@ -33,19 +32,38 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final feed = ref.watch(homeFeedProvider);
     final isGuest = ref.watch(guestSessionProvider);
-    final library = ref.watch(libraryProvider);
-    final recent = library.recentlyPlayed;
+    final recent = ref.watch(
+      libraryProvider.select((state) => state.recentlyPlayed),
+    );
+    List<YtSong> shelfSongs(List<YtSong> songs) =>
+        songs.take(8).toList(growable: false);
 
     // Collect all sections as generic (label, title, songs) tuples for mobile
     final sections = <({String label, String title, List<YtSong> songs})>[
       if (feed.effectiveQuickPicks.isNotEmpty)
-        (label: 'QUICK PICKS', title: 'Songs you might like', songs: feed.effectiveQuickPicks),
+        (
+          label: 'QUICK PICKS',
+          title: 'Songs you might like',
+          songs: shelfSongs(feed.effectiveQuickPicks)
+        ),
       if (feed.mixedForYou.isNotEmpty)
-        (label: 'MIXED FOR YOU', title: 'A blend of your favorites', songs: feed.mixedForYou),
+        (
+          label: 'MIXED FOR YOU',
+          title: 'A blend of your favorites',
+          songs: shelfSongs(feed.mixedForYou)
+        ),
       if (feed.becauseYouListenedTo.isNotEmpty)
-        (label: 'BECAUSE YOU LISTENED TO', title: feed.becauseArtistName ?? 'Your top artist', songs: feed.becauseYouListenedTo),
+        (
+          label: 'BECAUSE YOU LISTENED TO',
+          title: feed.becauseArtistName ?? 'Your top artist',
+          songs: shelfSongs(feed.becauseYouListenedTo)
+        ),
       if (feed.trending.isNotEmpty)
-        (label: 'TRENDING', title: "What's hot right now", songs: feed.trending),
+        (
+          label: 'TRENDING',
+          title: "What's hot right now",
+          songs: shelfSongs(feed.trending)
+        ),
     ];
 
     return Scaffold(
@@ -138,15 +156,9 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildFullSkeleton() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(
-        3,
-        (_) => Padding(
-          padding: const EdgeInsets.only(bottom: 32),
-          child: _SectionSkeleton(),
-        ),
-      ),
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 24),
+      child: _SectionSkeleton(),
     );
   }
 }
@@ -304,7 +316,7 @@ class _SectionRow extends StatelessWidget {
             )
           else
             SizedBox(
-              height: 192,
+              height: 170,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 primary: false,
@@ -339,7 +351,7 @@ class _SongCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 140,
+        width: 120,
         margin: const EdgeInsets.only(right: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,8 +360,8 @@ class _SongCard extends StatelessWidget {
             AppThumbnail(
               imageUrl: song.thumbnailUrl,
               videoId: song.id,
-              width: 140,
-              height: 140,
+              width: 120,
+              height: 120,
               borderRadius: 10,
               backgroundColor: const Color(0xFF1A1A1A),
             ),
@@ -380,37 +392,35 @@ class _SongCard extends StatelessWidget {
 // ─── Shimmer skeleton ─────────────────────────────────────────────────────────
 
 class _SectionSkeleton extends StatelessWidget {
+  const _SectionSkeleton();
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 170,
-      child: Shimmer.fromColors(
-        baseColor: const Color(0xFF1A1A1A),
-        highlightColor: const Color(0xFF2A2A2A),
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: 5,
-          itemBuilder: (_, __) => Container(
-            width: 140,
-            margin: const EdgeInsets.only(right: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 4,
+        itemBuilder: (_, __) => Container(
+          width: 120,
+          margin: const EdgeInsets.only(right: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 6),
-                Container(width: 100, height: 10, color: Colors.white),
-                const SizedBox(height: 4),
-                Container(width: 70, height: 8, color: Colors.white),
-              ],
-            ),
+              ),
+              const SizedBox(height: 6),
+              Container(width: 90, height: 10, color: Color(0xFF1A1A1A)),
+              const SizedBox(height: 4),
+              Container(width: 65, height: 8, color: Color(0xFF1A1A1A)),
+            ],
           ),
         ),
       ),

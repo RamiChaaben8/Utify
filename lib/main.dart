@@ -5,7 +5,13 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show FlutterError, FlutterErrorDetails, PlatformDispatcher, debugPrint, kDebugMode;
+import 'package:flutter/foundation.dart'
+    show
+        FlutterError,
+        FlutterErrorDetails,
+        PlatformDispatcher,
+        debugPrint,
+        kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -56,8 +62,6 @@ Future<void> _initializeHive() async {
     Hive.openBox<dynamic>(kLegacyDownloadBox),
   ]);
 }
-
-
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -191,7 +195,8 @@ Future<void> _appMain() async {
       // Give every provider in the tree the same handler instance that
       // audio_service registered — this is how playerProvider gets it.
       audioHandlerProvider.overrideWithValue(audioHandler),
-      youtubeServiceProvider.overrideWithValue(audioHandler.service.youtubeService),
+      youtubeServiceProvider
+          .overrideWithValue(audioHandler.service.youtubeService),
       guestSessionProvider.overrideWith(
         (ref) => GuestSessionNotifier(guestMode),
       ),
@@ -199,7 +204,9 @@ Future<void> _appMain() async {
     child: const TuneifyApp(),
   ));
 
-  WidgetsBinding.instance.addPostFrameCallback((_) => _warmCache());
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future<void>.delayed(const Duration(seconds: 1), _warmCache);
+  });
 }
 
 void _warmCache() {

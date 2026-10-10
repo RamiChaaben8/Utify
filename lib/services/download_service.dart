@@ -46,10 +46,10 @@ import '../platform/download_storage.dart';
 import 'download_index_service.dart';
 import 'youtube_service.dart';
 
-
 // ── Settings keys ────────────────────────────────────────────────────────────
 
-const String kSettingDownloadQuality  = 'download_quality';   // 'best' | 'compatible'
+const String kSettingDownloadQuality =
+    'download_quality'; // 'best' | 'compatible'
 const String kSettingDownloadOnMobile = 'download_on_mobile'; // bool
 
 // ── Watchdog duration ────────────────────────────────────────────────────────
@@ -67,14 +67,14 @@ class DownloadTask {
   String? error;
 
   bool _cancelled = false;
-  bool _paused    = false;
+  bool _paused = false;
   final _pauseController = StreamController<void>.broadcast();
 
   bool get isCancelled => _cancelled;
-  bool get isPaused    => _paused;
+  bool get isPaused => _paused;
 
   DownloadTask(this.song)
-      : status   = DownloadStatus.queued,
+      : status = DownloadStatus.queued,
         progress = 0.0;
 
   void cancel() {
@@ -82,7 +82,9 @@ class DownloadTask {
     if (!_pauseController.isClosed) _pauseController.close();
   }
 
-  void pause()  { _paused = true; }
+  void pause() {
+    _paused = true;
+  }
 
   void resume() {
     _paused = false;
@@ -102,7 +104,7 @@ const String _kAutoDownloadBox = 'playlist_auto_download';
 
 void _phaseLog(String videoId, String phase, [String? detail]) {
   if (!kDebugMode) return;
-  final ts  = DateTime.now().toUtc().toIso8601String();
+  final ts = DateTime.now().toUtc().toIso8601String();
   final msg = detail != null
       ? '[DownloadService][$ts] $videoId | $phase — $detail'
       : '[DownloadService][$ts] $videoId | $phase';
@@ -117,7 +119,7 @@ class DownloadService {
   DownloadService(this._ytService);
 
   final Map<String, DownloadTask> _tasks = {};
-  final List<String>              _queue = [];
+  final List<String> _queue = [];
 
   final _changeController = StreamController<void>.broadcast();
   Stream<void> get onChanged => _changeController.stream;
@@ -125,7 +127,8 @@ class DownloadService {
   DateTime _lastProgressNotify = DateTime.fromMillisecondsSinceEpoch(0);
   void _notifyProgress() {
     final now = DateTime.now();
-    if (now.difference(_lastProgressNotify) < const Duration(milliseconds: 300)) return;
+    if (now.difference(_lastProgressNotify) < const Duration(milliseconds: 300))
+      return;
     _lastProgressNotify = now;
     _notify();
   }
@@ -187,7 +190,8 @@ class DownloadService {
   DownloadStatus statusFor(String videoId) {
     final task = _tasks[videoId];
     if (task != null) return task.status;
-    if (DownloadIndexService.instance.isDownloaded(videoId)) return DownloadStatus.done;
+    if (DownloadIndexService.instance.isDownloaded(videoId))
+      return DownloadStatus.done;
     return DownloadStatus.queued;
   }
 
@@ -283,7 +287,7 @@ class DownloadService {
   void _drain() {
     while (_activeTasks < _maxConcurrent && _queue.isNotEmpty) {
       final videoId = _queue.removeAt(0);
-      final task    = _tasks[videoId];
+      final task = _tasks[videoId];
       if (task == null || task.isCancelled) continue;
       _activeTasks++;
       _runTask(task).whenComplete(() {
@@ -300,12 +304,12 @@ class DownloadService {
   // ── Run one task ──────────────────────────────────────────────────────────
 
   Future<void> _runTask(DownloadTask task) async {
-    final song    = task.song;
+    final song = task.song;
     final videoId = song.id;
 
     if (task.isCancelled) return;
 
-    task.status   = DownloadStatus.downloading;
+    task.status = DownloadStatus.downloading;
     task.progress = 0.01;
     _notify();
 
@@ -320,20 +324,22 @@ class DownloadService {
       await _downloadThumbnail(entry, song);
       await DownloadIndexService.instance.put(entry);
 
-      task.status   = DownloadStatus.done;
+      task.status = DownloadStatus.done;
       task.progress = 1.0;
       _tasks.remove(videoId);
 
-      _phaseLog(videoId, 'DONE',
+      _phaseLog(
+          videoId,
+          'DONE',
           '"${song.title}" — ${entry.format}, '
-          '${(entry.sizeBytes / 1024 / 1024).toStringAsFixed(1)} MB, '
-          '${stopwatch.elapsedMilliseconds} ms');
+              '${(entry.sizeBytes / 1024 / 1024).toStringAsFixed(1)} MB, '
+              '${stopwatch.elapsedMilliseconds} ms');
     } catch (e, st) {
       if (task.isCancelled) return;
 
-      task.status   = DownloadStatus.failed;
+      task.status = DownloadStatus.failed;
       task.progress = 0.0; // never leave progress at 1 % on failure
-      task.error    = e.toString().replaceAll('Exception: ', '');
+      task.error = e.toString().replaceAll('Exception: ', '');
 
       _phaseLog(videoId, 'FAILED', '"${song.title}": $e');
       if (kDebugMode) debugPrint('[DownloadService] stacktrace:\n$st');
@@ -349,7 +355,7 @@ class DownloadService {
   // ── Audio download ────────────────────────────────────────────────────────
 
   Future<DownloadIndexEntry> _downloadAudio(DownloadTask task) async {
-    final song    = task.song;
+    final song = task.song;
     final videoId = song.id;
 
     _phaseLog(videoId, 'MANIFEST_FETCH_START');
@@ -357,8 +363,8 @@ class DownloadService {
     try {
       candidate = await _watchdog(
         videoId: videoId,
-        phase:   'MANIFEST_FETCH',
-        work:    () => _bestAudioStream(videoId),
+        phase: 'MANIFEST_FETCH',
+        work: () => _bestAudioStream(videoId),
       ).timeout(const Duration(seconds: 20));
     } catch (e) {
       _phaseLog(videoId, 'MANIFEST_TIMEOUT', '$e');
@@ -367,32 +373,34 @@ class DownloadService {
       try {
         candidate = await _watchdog(
           videoId: videoId,
-          phase:   'MANIFEST_FETCH_RETRY',
-          work:    () => _bestAudioStream(videoId),
+          phase: 'MANIFEST_FETCH_RETRY',
+          work: () => _bestAudioStream(videoId),
         ).timeout(const Duration(seconds: 20));
       } catch (e2) {
         _phaseLog(videoId, 'MANIFEST_FAILED', '$e2');
         rethrow;
       }
     }
-    _phaseLog(videoId, 'MANIFEST_FETCH_END',
+    _phaseLog(
+        videoId,
+        'MANIFEST_FETCH_END',
         'itag=${candidate.streamInfo.tag}, '
-        'container=${candidate.extension}, '
-        '${candidate.bitrate ~/ 1000} kbps, '
-        'size=${_sizeLabel(candidate)}');
+            'container=${candidate.extension}, '
+            '${candidate.bitrate ~/ 1000} kbps, '
+            'size=${_sizeLabel(candidate)}');
 
-    final artist   = song.channelName;
-    final title    = song.title;
-    final ext      = candidate.extension;
+    final artist = song.channelName;
+    final title = song.title;
+    final ext = candidate.extension;
     final basename = buildDownloadBasename(
-      artist:  artist,
-      title:   title,
+      artist: artist,
+      title: title,
       videoId: videoId,
     );
 
     final isAndroid = Platform.isAndroid;
     final thumbPath = await thumbnailPathFor(
-      basename:  basename,
+      basename: basename,
       isAndroid: isAndroid,
     );
 
@@ -408,49 +416,41 @@ class DownloadService {
     _phaseLog(videoId, 'FILE_CREATED', partPath);
 
     final sizeBytes = await _downloadToFile(
-      task:      task,
+      task: task,
       candidate: candidate,
-      partPath:  partPath,
+      partPath: partPath,
     );
 
     if (task.isCancelled) throw Exception('Cancelled');
 
-    // Move .part → final
+    // Keep a private playback copy. MediaStore is only the user-visible
+    // export; playback must not depend on content:// URI support.
     String finalPath;
+    String? publicUri;
     if (isAndroid) {
-      final uriOrNull = await insertAudioViaMediaStore(
-        basename:     basename,
-        extension:    ext,
+      final appDir = await getApplicationSupportDirectory();
+      final playbackDir = Directory('${appDir.path}/downloads');
+      await playbackDir.create(recursive: true);
+      final playbackFile = File('${playbackDir.path}/$basename.$ext');
+      try {
+        await File(partPath).copy(playbackFile.path);
+      } catch (e) {
+        throw Exception('Could not store downloaded audio locally: $e');
+      }
+      finalPath = playbackFile.path;
+
+      publicUri = await insertAudioViaMediaStore(
+        basename: basename,
+        extension: ext,
         tempFilePath: partPath,
       );
-      if (uriOrNull != null) {
-        finalPath = uriOrNull;
-      } else {
-        // Fallback for Android <= 9 or when MediaStore is unavailable:
-        // Move to public download directory if accessible, or app-private files directory.
-        final dir    = await getDownloadDirectory();
-        final target = '${dir.path}/$basename.$ext';
-        try {
-          await File(partPath).rename(target);
-          finalPath = target;
-        } catch (_) {
-          try {
-            await File(partPath).copy(target);
-            await File(partPath).delete().catchError((_) => File(partPath));
-            finalPath = target;
-          } catch (_) {
-            // Direct write to public storage disallowed by scoped storage:
-            // Keep in app-internal files directory so the audio is still saved and playable.
-            final appDocDir = await getApplicationDocumentsDirectory();
-            final fallbackTarget = '${appDocDir.path}/$basename.$ext';
-            await File(partPath).copy(fallbackTarget);
-            await File(partPath).delete().catchError((_) => File(partPath));
-            finalPath = fallbackTarget;
-          }
-        }
+      if (publicUri == null) {
+        debugPrint('[Download] MediaStore export failed for $videoId; '
+            'keeping private playback copy');
       }
+      await File(partPath).delete().catchError((_) => File(partPath));
     } else {
-      final dir    = await getDownloadDirectory();
+      final dir = await getDownloadDirectory();
       final target = '${dir.path}\\$basename.$ext';
       try {
         await File(partPath).rename(target);
@@ -462,16 +462,17 @@ class DownloadService {
     }
 
     return DownloadIndexEntry(
-      videoId:      videoId,
-      path:         finalPath,
+      videoId: videoId,
+      path: finalPath,
       thumbnailPath: thumbPath,
-      format:       ext,
-      bitrate:      candidate.bitrate,
-      sizeBytes:    sizeBytes,
-      title:        title,
-      artist:       artist,
-      durationMs:   song.duration.inMilliseconds,
+      format: ext,
+      bitrate: candidate.bitrate,
+      sizeBytes: sizeBytes,
+      title: title,
+      artist: artist,
+      durationMs: song.duration.inMilliseconds,
       downloadedAt: DateTime.now(),
+      publicUri: publicUri,
     );
   }
 
@@ -489,7 +490,8 @@ class DownloadService {
   //   not a string comparison).
 
   Future<AudioStreamCandidate> _bestAudioStream(String videoId) async {
-    final manifest = await _ytService.yt.videos.streamsClient.getManifest(videoId);
+    final manifest =
+        await _ytService.yt.videos.streamsClient.getManifest(videoId);
 
     // Muxed mp4 (audio+video, e.g. itag 18) downloads reliably without
     // authentication; audio-only formats are rejected with HTTP 403. This is
@@ -497,13 +499,14 @@ class DownloadService {
     final List<MuxedStreamInfo> muxed = manifest.muxed
         .where((s) => s.container == StreamContainer.mp4)
         .toList()
-      ..sort((a, b) => b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
+      ..sort(
+          (a, b) => b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
     if (muxed.isNotEmpty) {
       final MuxedStreamInfo m = muxed.first;
       return AudioStreamCandidate(
         streamInfo: m,
-        bitrate:    m.bitrate.bitsPerSecond,
-        extension:  'mp4',
+        bitrate: m.bitrate.bitsPerSecond,
+        extension: 'mp4',
         totalBytes: m.size.totalBytes,
       );
     }
@@ -518,9 +521,7 @@ class DownloadService {
     // Build the candidate pool.
     List<AudioOnlyStreamInfo> pool;
     if (quality == 'compatible') {
-      pool = allAudio
-          .where((s) => s.container == StreamContainer.mp4)
-          .toList();
+      pool = allAudio.where((s) => s.container == StreamContainer.mp4).toList();
       if (pool.isEmpty) {
         _phaseLog(videoId, 'COMPAT_FALLBACK',
             'no mp4 stream found — using best available');
@@ -534,8 +535,8 @@ class DownloadService {
     pool.sort((AudioOnlyStreamInfo a, AudioOnlyStreamInfo b) =>
         b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
 
-    final AudioOnlyStreamInfo best        = pool.first;
-    final int                 bestBitrate = best.bitrate.bitsPerSecond;
+    final AudioOnlyStreamInfo best = pool.first;
+    final int bestBitrate = best.bitrate.bitsPerSecond;
 
     // Tie-break: pick an mp4 stream if it is within 10 % of the best bitrate.
     // Uses real object equality (StreamContainer.mp4) not a string compare.
@@ -552,14 +553,14 @@ class DownloadService {
 
     return AudioStreamCandidate(
       streamInfo: chosen,
-      bitrate:    chosen.bitrate.bitsPerSecond,
-      extension:  chosenExt,
+      bitrate: chosen.bitrate.bitsPerSecond,
+      extension: chosenExt,
       totalBytes: chosen.size.totalBytes,
     );
   }
 
   String _extForContainer(StreamContainer container) {
-    if (container == StreamContainer.mp4)  return 'm4a';
+    if (container == StreamContainer.mp4) return 'm4a';
     if (container == StreamContainer.webM) return 'webm';
     return container.name.toLowerCase();
   }
@@ -593,10 +594,10 @@ class DownloadService {
   // ── Download: dual strategy ───────────────────────────────────────────────
 
   Future<int> _downloadToFile({
-    required DownloadTask         task,
+    required DownloadTask task,
     required AudioStreamCandidate candidate,
-    required String               partPath,
-    int                           attempt = 0,
+    required String partPath,
+    int attempt = 0,
   }) async {
     const maxAttempts = 3;
 
@@ -620,18 +621,19 @@ class DownloadService {
         _phaseLog(task.song.id, 'STRATEGY_A_FAILED', '$e2');
       }
       if (attempt < maxAttempts - 1) {
-        _phaseLog(task.song.id, 'BOTH_FAILED_REFRESHING', 'attempt $attempt: $e');
+        _phaseLog(
+            task.song.id, 'BOTH_FAILED_REFRESHING', 'attempt $attempt: $e');
         _ytService.forgetStreamUrl(task.song.id);
         final fresh = await _watchdog(
           videoId: task.song.id,
-          phase:   'MANIFEST_FETCH_REFRESH',
-          work:    () => _bestAudioStream(task.song.id),
+          phase: 'MANIFEST_FETCH_REFRESH',
+          work: () => _bestAudioStream(task.song.id),
         );
         return _downloadToFile(
-          task:      task,
+          task: task,
           candidate: fresh,
-          partPath:  partPath,
-          attempt:   attempt + 1,
+          partPath: partPath,
+          attempt: attempt + 1,
         );
       }
       rethrow;
@@ -639,9 +641,9 @@ class DownloadService {
   }
 
   Future<int> _downloadViaStreamsClient(
-    DownloadTask          task,
-    AudioStreamCandidate  candidate,
-    String                partPath,
+    DownloadTask task,
+    AudioStreamCandidate candidate,
+    String partPath,
   ) async {
     IOSink? sink;
     final tempFile = File(partPath);
@@ -660,22 +662,22 @@ class DownloadService {
 
     try {
       // streamInfo is AudioOnlyStreamInfo — no cast to dynamic needed.
-      _phaseLog(task.song.id, 'STREAM_GET_START', 'itag=${candidate.streamInfo.tag}');
+      _phaseLog(
+          task.song.id, 'STREAM_GET_START', 'itag=${candidate.streamInfo.tag}');
       Stream<List<int>>? stream;
       try {
-        stream = _ytService.yt.videos.streamsClient
-            .get(candidate.streamInfo);
+        stream = _ytService.yt.videos.streamsClient.get(candidate.streamInfo);
       } catch (e) {
         _phaseLog(task.song.id, 'STREAM_GET_ERROR', '$e');
         rethrow;
       }
       _phaseLog(task.song.id, 'STREAM_GET_OK');
 
-      var received     = 0;
+      var received = 0;
       final totalBytes = candidate.totalBytes;
-      var firstByte    = true;
+      var firstByte = true;
       var lastLogBytes = 0;
-      var lastLogTime  = DateTime.now();
+      var lastLogTime = DateTime.now();
 
       resetWatchdog();
 
@@ -714,42 +716,48 @@ class DownloadService {
 
           final now = DateTime.now();
           if (now.difference(lastLogTime).inSeconds >= 2) {
-            final elapsed  = now.difference(lastLogTime).inMilliseconds;
-            final deltaKb  = (received - lastLogBytes) / 1024;
-            final speed    = elapsed > 0 ? (deltaKb * 1000 / elapsed) : 0;
-            _phaseLog(task.song.id, 'PROGRESS_A',
+            final elapsed = now.difference(lastLogTime).inMilliseconds;
+            final deltaKb = (received - lastLogBytes) / 1024;
+            final speed = elapsed > 0 ? (deltaKb * 1000 / elapsed) : 0;
+            _phaseLog(
+                task.song.id,
+                'PROGRESS_A',
                 '${(received / 1024).toStringAsFixed(0)} KB'
-                '${totalBytes > 0 ? " / ${(totalBytes / 1024).toStringAsFixed(0)} KB" : ""}'
-                ' — ${speed.toStringAsFixed(0)} KB/s'
-                ' — ${(task.progress * 100).toStringAsFixed(1)}%');
+                    '${totalBytes > 0 ? " / ${(totalBytes / 1024).toStringAsFixed(0)} KB" : ""}'
+                    ' — ${speed.toStringAsFixed(0)} KB/s'
+                    ' — ${(task.progress * 100).toStringAsFixed(1)}%');
             lastLogBytes = received;
-            lastLogTime  = now;
+            lastLogTime = now;
           }
         }
       } catch (e) {
         watchdog?.cancel();
-        await sink?.close(); sink = null;
+        await sink?.close();
+        sink = null;
         await tempFile.delete().catchError((_) => tempFile);
         rethrow;
       }
 
       if (cancelled || task.isCancelled) {
         watchdog?.cancel();
-        await sink?.close(); sink = null;
+        await sink?.close();
+        sink = null;
         await tempFile.delete().catchError((_) => tempFile);
         throw Exception('Cancelled');
       }
 
       if (received == 0) {
         watchdog?.cancel();
-        await sink?.close(); sink = null;
+        await sink?.close();
+        sink = null;
         await tempFile.delete().catchError((_) => tempFile);
         throw Exception('Received 0 bytes from stream');
       }
 
       watchdog?.cancel();
       await sink?.flush();
-      await sink?.close(); sink = null;
+      await sink?.close();
+      sink = null;
 
       final size = await tempFile.length();
       if (size < 20000) throw Exception('Incomplete: $size bytes');
@@ -771,11 +779,11 @@ class DownloadService {
 
   Future<int> _downloadViaHttpClient(
     DownloadTask task,
-    String       url,
-    String       partPath,
-    int          knownTotalBytes,
+    String url,
+    String partPath,
+    int knownTotalBytes,
   ) async {
-    IOSink?     sink;
+    IOSink? sink;
     HttpClient? client;
     final tempFile = File(partPath);
 
@@ -795,104 +803,120 @@ class DownloadService {
 
       client = HttpClient()
         ..connectionTimeout = const Duration(seconds: 30)
-        ..idleTimeout       = const Duration(seconds: 30);
+        ..idleTimeout = const Duration(seconds: 30);
 
       final uri = Uri.parse(url);
       const chunkSize = 512 * 1024;
       final contentLength = knownTotalBytes;
-      var received     = 0;
-      var firstByte    = true;
+      var received = 0;
+      var firstByte = true;
       var lastLogBytes = 0;
-      var lastLogTime  = DateTime.now();
-      bool cancelled   = false;
-      bool finished    = false;
-      var statusCode   = 0;
+      var lastLogTime = DateTime.now();
+      bool cancelled = false;
+      bool finished = false;
+      var statusCode = 0;
 
-      var retries      = 0;
+      var retries = 0;
 
       try {
         while (!finished) {
-          if (task.isCancelled) { cancelled = true; break; }
+          if (task.isCancelled) {
+            cancelled = true;
+            break;
+          }
           while (task.isPaused && !task.isCancelled) {
             watchdog?.cancel();
             await Future<void>.delayed(const Duration(milliseconds: 100));
           }
-          if (task.isCancelled) { cancelled = true; break; }
+          if (task.isCancelled) {
+            cancelled = true;
+            break;
+          }
 
           try {
-          final start = received;
-          final end   = start + chunkSize - 1;
-          resetWatchdog('HTTP_CONNECT');
-          final req = await client!
-              .getUrl(uri)
-              .timeout(const Duration(seconds: 15));
-          // Same request shape as the old working version: plain GET with a
-          // Chrome user agent. Range is used only to resume after a stall.
-          req.headers.set(HttpHeaders.userAgentHeader,
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-              '(KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
-          if (start > 0) req.headers.set('Range', 'bytes=$start-');
-          final resp = await req.close().timeout(const Duration(seconds: 15));
-          statusCode = resp.statusCode;
-          if (firstByte) _phaseLog(task.song.id, 'HTTP_STATUS', '$statusCode');
-          if (statusCode != HttpStatus.ok &&
-              statusCode != HttpStatus.partialContent) {
-            await resp.drain<void>();
-            throw Exception('HTTP $statusCode');
-          }
-          if (statusCode == HttpStatus.ok && start > 0) {
-            await resp.drain<void>();
-            throw Exception('Server ignored Range header');
-          }
-
-          var chunkBytes = 0;
-          await for (final chunk in resp.timeout(const Duration(seconds: 15))) {
-            if (task.isCancelled) { cancelled = true; break; }
-            resetWatchdog('HTTP_BODY');
-            sink!.add(chunk);
-            received   += chunk.length;
-            chunkBytes += chunk.length;
-
-            if (firstByte) {
-              firstByte = false;
-              _phaseLog(task.song.id, 'FIRST_BYTE',
-                  'strategy=B, ${chunk.length} bytes, total=$contentLength');
+            final start = received;
+            final end = start + chunkSize - 1;
+            resetWatchdog('HTTP_CONNECT');
+            final req =
+                await client!.getUrl(uri).timeout(const Duration(seconds: 15));
+            // Same request shape as the old working version: plain GET with a
+            // Chrome user agent. Range is used only to resume after a stall.
+            req.headers.set(
+                HttpHeaders.userAgentHeader,
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
+            if (start > 0) req.headers.set('Range', 'bytes=$start-');
+            final resp = await req.close().timeout(const Duration(seconds: 15));
+            statusCode = resp.statusCode;
+            if (firstByte)
+              _phaseLog(task.song.id, 'HTTP_STATUS', '$statusCode');
+            if (statusCode != HttpStatus.ok &&
+                statusCode != HttpStatus.partialContent) {
+              await resp.drain<void>();
+              throw Exception('HTTP $statusCode');
+            }
+            if (statusCode == HttpStatus.ok && start > 0) {
+              await resp.drain<void>();
+              throw Exception('Server ignored Range header');
             }
 
-            task.progress = contentLength > 0
-                ? (received / contentLength).clamp(0.0, 1.0)
-                : 0.02 + (received / (6 * 1024 * 1024)).clamp(0.0, 0.93);
-            _notifyProgress();
+            var chunkBytes = 0;
+            await for (final chunk
+                in resp.timeout(const Duration(seconds: 15))) {
+              if (task.isCancelled) {
+                cancelled = true;
+                break;
+              }
+              resetWatchdog('HTTP_BODY');
+              sink!.add(chunk);
+              received += chunk.length;
+              chunkBytes += chunk.length;
 
-            final now = DateTime.now();
-            if (now.difference(lastLogTime).inSeconds >= 2) {
-              final elapsed = now.difference(lastLogTime).inMilliseconds;
-              final deltaKb = (received - lastLogBytes) / 1024;
-              final speed   = elapsed > 0 ? (deltaKb * 1000 / elapsed) : 0;
-              _phaseLog(task.song.id, 'PROGRESS_B',
-                  '${(received / 1024).toStringAsFixed(0)} KB'
-                  '${contentLength > 0 ? " / ${(contentLength / 1024).toStringAsFixed(0)} KB" : ""}'
-                  ' — ${speed.toStringAsFixed(0)} KB/s'
-                  ' — ${(task.progress * 100).toStringAsFixed(1)}%');
-              lastLogBytes = received;
-              lastLogTime  = now;
+              if (firstByte) {
+                firstByte = false;
+                _phaseLog(task.song.id, 'FIRST_BYTE',
+                    'strategy=B, ${chunk.length} bytes, total=$contentLength');
+              }
+
+              task.progress = contentLength > 0
+                  ? (received / contentLength).clamp(0.0, 1.0)
+                  : 0.02 + (received / (6 * 1024 * 1024)).clamp(0.0, 0.93);
+              _notifyProgress();
+
+              final now = DateTime.now();
+              if (now.difference(lastLogTime).inSeconds >= 2) {
+                final elapsed = now.difference(lastLogTime).inMilliseconds;
+                final deltaKb = (received - lastLogBytes) / 1024;
+                final speed = elapsed > 0 ? (deltaKb * 1000 / elapsed) : 0;
+                _phaseLog(
+                    task.song.id,
+                    'PROGRESS_B',
+                    '${(received / 1024).toStringAsFixed(0)} KB'
+                        '${contentLength > 0 ? " / ${(contentLength / 1024).toStringAsFixed(0)} KB" : ""}'
+                        ' — ${speed.toStringAsFixed(0)} KB/s'
+                        ' — ${(task.progress * 100).toStringAsFixed(1)}%');
+                lastLogBytes = received;
+                lastLogTime = now;
+              }
             }
-          }
-          if (cancelled) break;
+            if (cancelled) break;
 
-          if (statusCode == HttpStatus.ok &&
-              (contentLength <= 0 || received >= contentLength - 1024)) {
-            finished = true; // server sent everything
-          } else if (contentLength > 0 && received >= contentLength) {
-            finished = true;
-          } else if (chunkBytes < chunkSize && contentLength <= 0) {
-            finished = true;
-          } else if (chunkBytes == 0) {
-            throw Exception('Empty chunk at offset $start');
-          }
-          retries = 0;
+            if (statusCode == HttpStatus.ok &&
+                (contentLength <= 0 || received >= contentLength - 1024)) {
+              finished = true; // server sent everything
+            } else if (contentLength > 0 && received >= contentLength) {
+              finished = true;
+            } else if (chunkBytes < chunkSize && contentLength <= 0) {
+              finished = true;
+            } else if (chunkBytes == 0) {
+              throw Exception('Empty chunk at offset $start');
+            }
+            retries = 0;
           } catch (e) {
-            if (task.isCancelled) { cancelled = true; break; }
+            if (task.isCancelled) {
+              cancelled = true;
+              break;
+            }
             retries++;
             _phaseLog(task.song.id, 'CHUNK_RETRY',
                 '#$retries at offset $received: $e');
@@ -901,7 +925,7 @@ class DownloadService {
             client?.close(force: true);
             client = HttpClient()
               ..connectionTimeout = const Duration(seconds: 15)
-              ..idleTimeout       = const Duration(seconds: 15);
+              ..idleTimeout = const Duration(seconds: 15);
             await Future<void>.delayed(Duration(milliseconds: 500 * retries));
           }
         }
@@ -914,13 +938,14 @@ class DownloadService {
 
       watchdog?.cancel();
       await sink?.flush();
-      await sink?.close();  sink   = null;
-      client?.close();      client = null;
+      await sink?.close();
+      sink = null;
+      client?.close();
+      client = null;
 
       final size = await tempFile.length();
       if (size < 20000) {
-        throw Exception(
-            'Incomplete: $size bytes (status $statusCode)');
+        throw Exception('Incomplete: $size bytes (status $statusCode)');
       }
 
       task.progress = 1.0;
@@ -950,9 +975,9 @@ class DownloadService {
       final thumbFile = File(entry.thumbnailPath);
       if (await thumbFile.exists()) return;
 
-      final client   = HttpClient()
-          ..connectionTimeout = const Duration(seconds: 10);
-      final request  = await client.getUrl(Uri.parse(thumbUrl));
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 10);
+      final request = await client.getUrl(Uri.parse(thumbUrl));
       final response = await request.close();
       if (response.statusCode != HttpStatus.ok) {
         client.close(force: true);
@@ -1006,9 +1031,9 @@ class DownloadService {
 class AudioStreamCandidate {
   /// Strongly-typed stream info — no dynamic casts needed downstream.
   final StreamInfo streamInfo;
-  final int                 bitrate;    // bits per second
-  final String              extension;  // 'm4a', 'webm', …
-  final int                 totalBytes; // from manifest; 0 if unknown
+  final int bitrate; // bits per second
+  final String extension; // 'm4a', 'webm', …
+  final int totalBytes; // from manifest; 0 if unknown
 
   const AudioStreamCandidate({
     required this.streamInfo,

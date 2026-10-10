@@ -172,7 +172,9 @@ class HomeFeedState {
 
   List<YtArtist> get effectiveArtists {
     final m = _activeMood;
-    return (m != null && m.artists.isNotEmpty) ? m.artists : artistsYouMightLike;
+    return (m != null && m.artists.isNotEmpty)
+        ? m.artists
+        : artistsYouMightLike;
   }
 
   List<YtSong> get effectiveTrending {
@@ -440,7 +442,7 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
           albumsForYouState: const SectionState().loading(),
         ));
 
-    int inFlight = _recentlyPlayed.isNotEmpty ? 3 : 2;
+    int inFlight = _recentlyPlayed.isNotEmpty ? 4 : 3;
 
     void taskDone() {
       inFlight--;
@@ -455,7 +457,8 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
     // ── 1. Home feed ──────────────────────────────────────────────────────────
     // Subscribe first so a background revalidation landing during the await is
     // not lost to the stale payload we are about to discard.
-    final homeFeedRevision = _watchRevision<(List<YtSection>, List<YtMoodChip>)>(
+    final homeFeedRevision =
+        _watchRevision<(List<YtSection>, List<YtMoodChip>)>(
       YtMusicService.kHomeFeedKey,
       (value) => _applyHomeFeed(value.$1, value.$2, null),
     );
@@ -472,8 +475,8 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
     }).whenComplete(taskDone);
 
     // ── 2. Explore ────────────────────────────────────────────────────────────
-    final exploreRevision =
-        _watchRevision<List<YtSection>>(YtMusicService.kExploreKey, _applyExplore);
+    final exploreRevision = _watchRevision<List<YtSection>>(
+        YtMusicService.kExploreKey, _applyExplore);
 
     _service.getExplore().then((sections) {
       if (exploreRevision()) return;
@@ -489,23 +492,20 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
     // ── 3. Artist personalisation + Albums For You ────────────────────────────
     if (_recentlyPlayed.isEmpty) {
       // No history → no artist tasks, but still load Albums For You
-      _service
-          .getAlbumsForYou(homeAlbums: homeAlbumsCollected)
-          .then((albums) {
-            debugPrint('[HomeFeed] getAlbumsForYou (no history) → ${albums.length}');
-            _patch((s) => s.copyWith(
-                  albumsForYou: albums,
-                  albumsForYouState: const SectionState().done(),
-                ));
-          })
-          .catchError((e) {
-            debugPrint('[HomeFeed] getAlbumsForYou (no history) error: $e');
-            _patch((s) => s.copyWith(
-                  albumsForYouState:
-                      const SectionState().fail('Could not load: $e'),
-                ));
-          })
-          .whenComplete(taskDone);
+      _service.getAlbumsForYou(homeAlbums: homeAlbumsCollected).then((albums) {
+        debugPrint(
+            '[HomeFeed] getAlbumsForYou (no history) → ${albums.length}');
+        _patch((s) => s.copyWith(
+              albumsForYou: albums,
+              albumsForYouState: const SectionState().done(),
+            ));
+      }).catchError((e) {
+        debugPrint('[HomeFeed] getAlbumsForYou (no history) error: $e');
+        _patch((s) => s.copyWith(
+              albumsForYouState:
+                  const SectionState().fail('Could not load: $e'),
+            ));
+      }).whenComplete(taskDone);
       return;
     }
 
@@ -575,8 +575,6 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
       }
     }
 
-    artistTasks().whenComplete(taskDone);
-
     // ── 4. Albums For You — runs after artist tasks so IDs are populated ──────
     // We chain this inside artistTasks completion so state.artistsYouMightLike
     // is already set when we read it.
@@ -613,7 +611,9 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
     }
 
     // Chain albums after artist tasks so artist IDs are ready
-    artistTasks().then((_) => albumsTask()).whenComplete(taskDone);
+    final artistFuture = artistTasks();
+    artistFuture.whenComplete(taskDone);
+    artistFuture.then((_) => albumsTask()).whenComplete(taskDone);
   }
 
   // ── Mood selection ─────────────────────────────────────────────────────────
@@ -663,22 +663,20 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
     // songs shelves → quickPicks (largest) + trending (second)
     // albums shelf  → newReleases
     // artists shelf → artistsYouMightLike
-    final songShelves =
-        sections.where((s) => s.songs.isNotEmpty).toList()
-          ..sort((a, b) => b.songs.length.compareTo(a.songs.length));
+    final songShelves = sections.where((s) => s.songs.isNotEmpty).toList()
+      ..sort((a, b) => b.songs.length.compareTo(a.songs.length));
     final albumShelf = sections.firstWhere(
       (s) => s.albums.isNotEmpty,
-      orElse: () =>
-          const YtSection(title: '', songs: [], albums: [], artists: [], playlists: []),
+      orElse: () => const YtSection(
+          title: '', songs: [], albums: [], artists: [], playlists: []),
     );
     final artistShelf = sections.firstWhere(
       (s) => s.artists.isNotEmpty,
-      orElse: () =>
-          const YtSection(title: '', songs: [], albums: [], artists: [], playlists: []),
+      orElse: () => const YtSection(
+          title: '', songs: [], albums: [], artists: [], playlists: []),
     );
 
-    List<YtSong> moodSongs =
-        songShelves.isNotEmpty ? songShelves[0].songs : [];
+    List<YtSong> moodSongs = songShelves.isNotEmpty ? songShelves[0].songs : [];
     List<YtSong> moodTrending =
         songShelves.length > 1 ? songShelves[1].songs : [];
     List<YtAlbum> moodAlbums = albumShelf.albums;
@@ -797,8 +795,8 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
   }
 
   Future<void> retryAlbumsForYou() async {
-    _patch((s) =>
-        s.copyWith(albumsForYouState: const SectionState().loading()));
+    _patch(
+        (s) => s.copyWith(albumsForYouState: const SectionState().loading()));
     try {
       final artistIds = state.artistsYouMightLike
           .take(5)
@@ -814,8 +812,7 @@ class HomeFeedNotifier extends StateNotifier<HomeFeedState> {
           ));
     } catch (e) {
       _patch((s) => s.copyWith(
-            albumsForYouState:
-                const SectionState().fail('Could not load: $e'),
+            albumsForYouState: const SectionState().fail('Could not load: $e'),
           ));
     }
   }
