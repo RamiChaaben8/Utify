@@ -66,131 +66,135 @@ class _ListenPartyControlsState extends ConsumerState<ListenPartyControls> {
       }
     }
 
-    await showDialog<void>(
-      context: context,
-      builder: (context) => StatefulBuilder(builder: (context, setDialogState) {
-        final theme = AppThemeScope.maybeOf(context);
-        final partyState = ref.watch(listenPartyProvider);
-        final friends = ref.watch(friendsProvider).accepted;
-        return AlertDialog(
-          backgroundColor: theme?.card,
-          title: Text(
-            partyState.party == null ? 'Listen Together' : 'Party',
-            style: TextStyle(color: theme?.text),
-          ),
-          content: partyState.party == null
-              ? Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('Create a party or join with an ID.'),
-                  TextField(
-                    controller: controller,
-                    onChanged: (_) => setDialogState(() {}),
-                    style: TextStyle(color: theme?.text ?? Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Party ID (to join)',
-                      labelStyle: TextStyle(color: theme?.subtext),
-                      hintStyle: TextStyle(color: theme?.subtext),
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => StatefulBuilder(builder: (context, setDialogState) {
+          final theme = AppThemeScope.maybeOf(context);
+          final partyState = ref.watch(listenPartyProvider);
+          final friends = ref.watch(friendsProvider).accepted;
+          return AlertDialog(
+            backgroundColor: theme?.card,
+            title: Text(
+              partyState.party == null ? 'Listen Together' : 'Party',
+              style: TextStyle(color: theme?.text),
+            ),
+            content: partyState.party == null
+                ? Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('Create a party or join with an ID.'),
+                    TextField(
+                      controller: controller,
+                      onChanged: (_) => setDialogState(() {}),
+                      style: TextStyle(color: theme?.text ?? Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Party ID (to join)',
+                        labelStyle: TextStyle(color: theme?.subtext),
+                        hintStyle: TextStyle(color: theme?.subtext),
+                      ),
                     ),
-                  ),
-                ])
-              : Column(mainAxisSize: MainAxisSize.min, children: [
-                  SelectableText('Party ID: ${partyState.party!.id}'),
-                  Text('${partyState.party!.memberUids.length}/8 members'),
-                  const SizedBox(height: 8),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Invite a friend'),
-                  ),
-                  if (friends.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text('Add friends first to invite them.'),
-                    )
-                  else
-                    ...friends.map((friend) {
-                      final otherUid = friend.otherUid;
-                      final profile = friend.profile;
-                      if (otherUid == null) return const SizedBox.shrink();
-                      return ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          radius: 16,
-                          child: profile?.photoURL.isNotEmpty == true
-                              ? ClipOval(child: Image.network(
-                                  profile!.photoURL,
-                                  width: 32,
-                                  height: 32,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      const Icon(Icons.person, size: 16),
-                                ))
-                              : const Icon(Icons.person, size: 16),
-                        ),
-                        title: Text(
-                          profile?.displayName.trim().isNotEmpty == true
-                              ? profile!.displayName
-                              : profile?.username.trim().isNotEmpty == true
-                                  ? '@${profile!.username}'
-                                  : otherUid,
-                        ),
-                        subtitle: Text('@${profile?.username ?? otherUid}'),
-                        trailing: IconButton(
-                          tooltip: 'Invite',
-                          icon: const Icon(Icons.person_add_alt_1),
-                          onPressed: () async {
-                            await ref
-                                .read(listenPartyProvider.notifier)
-                                .invite(otherUid);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Invitation sent to ${profile?.displayName ?? 'friend'}',
+                  ])
+                : Column(mainAxisSize: MainAxisSize.min, children: [
+                    SelectableText('Party ID: ${partyState.party!.id}'),
+                    Text('${partyState.party!.memberUids.length}/8 members'),
+                    const SizedBox(height: 8),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Invite a friend'),
+                    ),
+                    if (friends.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Text('Add friends first to invite them.'),
+                      )
+                    else
+                      ...friends.map((friend) {
+                        final otherUid = friend.otherUid;
+                        final profile = friend.profile;
+                        if (otherUid == null) return const SizedBox.shrink();
+                        return ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            radius: 16,
+                            child: profile?.photoURL.isNotEmpty == true
+                                ? ClipOval(child: Image.network(
+                                    profile!.photoURL,
+                                    width: 32,
+                                    height: 32,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        const Icon(Icons.person, size: 16),
+                                  ))
+                                : const Icon(Icons.person, size: 16),
+                          ),
+                          title: Text(
+                            profile?.displayName.trim().isNotEmpty == true
+                                ? profile!.displayName
+                                : profile?.username.trim().isNotEmpty == true
+                                    ? '@${profile!.username}'
+                                    : otherUid,
+                          ),
+                          subtitle: Text('@${profile?.username ?? otherUid}'),
+                          trailing: IconButton(
+                            tooltip: 'Invite',
+                            icon: const Icon(Icons.person_add_alt_1),
+                            onPressed: () async {
+                              await ref
+                                  .read(listenPartyProvider.notifier)
+                                  .invite(otherUid);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Invitation sent to ${profile?.displayName ?? 'friend'}',
+                                    ),
                                   ),
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                      );
-                    }),
-                ]),
-          actions: [
-            if (partyState.party == null) ...[
+                                );
+                              }
+                            },
+                          ),
+                        );
+                      }),
+                  ]),
+            actions: [
+              if (partyState.party == null) ...[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    run(() => ref.read(listenPartyProvider.notifier).create());
+                  },
+                  child: const Text('Create'),
+                ),
+                TextButton(
+                  onPressed: controller.text.trim().isEmpty
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          run(() => ref
+                              .read(listenPartyProvider.notifier)
+                              .join(controller.text.trim()));
+                        },
+                  child: const Text('Join'),
+                ),
+              ] else ...[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    ref.read(listenPartyProvider.notifier).leave();
+                  },
+                  child: const Text('Leave'),
+                ),
+              ],
               TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  run(() => ref.read(listenPartyProvider.notifier).create());
-                },
-                child: const Text('Create'),
-              ),
-              TextButton(
-                onPressed: controller.text.trim().isEmpty
-                    ? null
-                    : () {
-                        Navigator.pop(context);
-                        run(() => ref
-                            .read(listenPartyProvider.notifier)
-                            .join(controller.text.trim()));
-                      },
-                child: const Text('Join'),
-              ),
-            ] else ...[
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ref.read(listenPartyProvider.notifier).leave();
-                },
-                child: const Text('Leave'),
-              ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close')),
             ],
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close')),
-          ],
-        );
-      }),
-    );
+          );
+        }),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   @override

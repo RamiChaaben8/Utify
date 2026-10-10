@@ -24,7 +24,7 @@ import '../providers/youtube_provider.dart';
 import 'app_thumbnail.dart';
 import 'song_context_menu.dart';
 
-class SongTile extends ConsumerWidget {
+class SongTile extends ConsumerStatefulWidget {
   final Song song;
   final VoidCallback onTap;
   final bool isPlaying;
@@ -51,10 +51,26 @@ class SongTile extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Resolve the stream while this song is visible so tapping it does not
-    // need to wait for YouTube's manifest request.
-    ref.read(youtubeServiceProvider).prefetchUrl(song.id);
+  ConsumerState<SongTile> createState() => _SongTileState();
+}
+
+class _SongTileState extends ConsumerState<SongTile> {
+  @override
+  void initState() {
+    super.initState();
+    ref.read(youtubeServiceProvider).prefetchUrl(widget.song.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final song = widget.song;
+    final isPlaying = widget.isPlaying;
+    final isSelected = widget.isSelected;
+    final onTap = widget.onTap;
+    final currentPlaylist = widget.currentPlaylist;
+    final trailing = widget.trailing;
+    final noTrailing = widget.noTrailing;
+
     final (isDownloaded, isDownloading, progressStep) =
         ref.watch(downloadProvider.select((s) => (
               s.isDownloaded(song.id),
@@ -175,7 +191,7 @@ class SongTile extends ConsumerWidget {
 
   Widget _thumbnail(BuildContext context) {
     final theme = context.appTheme;
-    if (song.isLocal) {
+    if (widget.song.isLocal) {
       return SizedBox(
         width: 52,
         height: 52,
@@ -188,8 +204,8 @@ class SongTile extends ConsumerWidget {
       );
     }
     return AppThumbnail(
-      imageUrl: song.thumbnailUrl,
-      videoId: song.id,
+      imageUrl: widget.song.thumbnailUrl,
+      videoId: widget.song.id,
       width: 52,
       height: 52,
       borderRadius: 4,

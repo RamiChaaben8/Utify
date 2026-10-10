@@ -23,7 +23,8 @@ import '../models/listen_party.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final Map<String, PublicProfile> _profileCache = {};
+  final Map<String, ({PublicProfile profile, DateTime fetchedAt})> _profileCache = {};
+  static const Duration _profileTtl = Duration(minutes: 10);
   static final RegExp usernamePattern = RegExp(r'^[a-z0-9_]{3,20}$');
 
   // ── Root helpers ──────────────────────────────────────────────────────────
@@ -84,11 +85,16 @@ class FirestoreService {
   }
 
   Future<PublicProfile?> getPublicProfile(String uid) async {
+    final cached = _profileCache[uid];
+    if (cached != null && DateTime.now().difference(cached.fetchedAt) < _profileTtl) {
+      return cached.profile;
+    }
+
     try {
       final doc = await _db.collection('publicProfiles').doc(uid).get();
       if (doc.exists && doc.data() != null) {
         final profile = PublicProfile.fromMap(uid, doc.data()!);
-        _profileCache[uid] = profile;
+        _profileCache[uid] = (profile: profile, fetchedAt: DateTime.now());
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(
             'friend_profile_$uid', jsonEncode(profile.toMap()));
@@ -102,14 +108,14 @@ class FirestoreService {
 
   Future<PublicProfile?> getCachedPublicProfile(String uid) async {
     final cached = _profileCache[uid];
-    if (cached != null) return cached;
+    if (cached != null) return cached.profile;
     final prefs = await SharedPreferences.getInstance();
     final encoded = prefs.getString('friend_profile_$uid');
     if (encoded == null) return null;
     try {
       final profile = PublicProfile.fromMap(
           uid, jsonDecode(encoded) as Map<String, dynamic>);
-      _profileCache[uid] = profile;
+      _profileCache[uid] = (profile: profile, fetchedAt: DateTime.now());
       return profile;
     } catch (_) {
       return null;
@@ -849,21 +855,24 @@ class FirestoreService {
 
   Future<void> addSongsToPlaylist(
       String uid, String playlistId, List<Song> songs) async {
-    for (final song in songs) {
-      await addSongToPlaylist(uid, playlistId, song);
-    }
+    if (songs.isEmpty) return;
+    final ref = _userCol(uid, 'playlists').doc(playlistId);
+    await ref.update({
+      'trackIds': FieldValue.arrayUnion(songs.map((s) => s.id).toList()),
+      'tracks': FieldValue.arrayUnion(songs.map(_songToMap).toList()),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> addSongsToSharedPlaylist(
       String sharedPlaylistId, List<Song> songs) async {
+    if (songs.isEmpty) return;
     final ref = _db.collection('sharedPlaylists').doc(sharedPlaylistId);
-    for (final song in songs) {
-      await ref.update({
-        'trackIds': FieldValue.arrayUnion([song.id]),
-        'tracks': FieldValue.arrayUnion([_songToMap(song)]),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }
+    await ref.update({
+      'trackIds': FieldValue.arrayUnion(songs.map((s) => s.id).toList()),
+      'tracks': FieldValue.arrayUnion(songs.map(_songToMap).toList()),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   /// Remove a song from a shared (collaborative) playlist.

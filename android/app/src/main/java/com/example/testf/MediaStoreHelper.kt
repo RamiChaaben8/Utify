@@ -20,7 +20,7 @@ object MediaStoreHelper {
     private fun mimeFor(extension: String): String = when (extension.lowercase()) {
         "m4a"  -> "audio/mp4"
         "webm" -> "audio/webm"
-        "mp4"  -> "video/mp4"
+        "mp4"  -> "audio/mp4"
         else   -> "audio/mpeg"
     }
 

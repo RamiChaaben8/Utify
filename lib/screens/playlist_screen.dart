@@ -329,39 +329,43 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     if (mounted) Navigator.pop(context);
   }
 
-  void _showRenameDialog(Playlist playlist) {
+  Future<void> _showRenameDialog(Playlist playlist) async {
     final controller = TextEditingController(text: playlist.name);
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('Edit playlist name',
-            style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
+    try {
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: const Text('Edit playlist name',
+              style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final name = controller.text.trim();
+                if (name.isEmpty) return;
+                ref
+                    .read(libraryProvider.notifier)
+                    .renamePlaylistObj(playlist, name);
+                Navigator.pop(dialogContext);
+              },
+              child:
+                  const Text('Save', style: TextStyle(color: Color(0xFF1DB954))),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final name = controller.text.trim();
-              if (name.isEmpty) return;
-              ref
-                  .read(libraryProvider.notifier)
-                  .renamePlaylistObj(playlist, name);
-              Navigator.pop(dialogContext);
-            },
-            child:
-                const Text('Save', style: TextStyle(color: Color(0xFF1DB954))),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showVisibilityMenu(Playlist playlist) {

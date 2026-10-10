@@ -5,6 +5,7 @@ import 'dart:io';
 
 import '../providers/auth_provider.dart';
 import '../providers/friends_provider.dart';
+import '../providers/presence_provider.dart';
 import '../services/firestore_service.dart';
 import 'friend_profile_screen.dart';
 import '../desktop/theme/desktop_theme.dart';
@@ -192,80 +193,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
         title: Text('@${profile?.username ?? 'unknown'}'),
       );
     }
-    return StreamBuilder<PresenceInfo?>(
-      stream: FirestoreService().presenceStream(friendship.otherUid!),
-      builder: (context, snapshot) {
-        final presence = snapshot.data;
-        final title = profile.displayName.isNotEmpty
-            ? profile.displayName
-            : '@${profile.username}';
-        final online = presence?.isOnline == true;
-        // PresenceInfo.isListening gates on isOnline, so an offline friend's
-        // stale activity block can no longer show the equalizer.
-        final listening = presence?.isListening == true;
-        final subtitle = online
-            ? presence!.activity != null
-                ? '${presence.activity!['title'] ?? 'Listening'} • ${presence.activity!['artist'] ?? ''}'
-                : 'Online'
-            : 'Offline${_lastSeen(presence?.lastActiveAt)}';
-        return ListTile(
-          leading: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              _avatar(profile),
-              Positioned(
-                right: -1,
-                bottom: -1,
-                child: Container(
-                  width: 13,
-                  height: 13,
-                  decoration: BoxDecoration(
-                    color: presence?.isOnline == true
-                        ? context.appTheme.nowPlayingAccent
-                        : context.appTheme.subtext.withValues(alpha: 0.5),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        width: 2),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          title: Text(title),
-          subtitle: Row(
-            children: [
-              if (listening) ...[
-                Icon(Icons.equalizer,
-                    size: 16, color: context.appTheme.nowPlayingAccent),
-                const SizedBox(width: 4),
-              ],
-              Expanded(
-                child: Text(subtitle, overflow: TextOverflow.ellipsis),
-              ),
-            ],
-          ),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => FriendProfileScreen(profile: profile),
-            ),
-          ),
-          trailing: PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'unfriend') {
-                ref.read(friendsProvider.notifier).unfriend(friendship);
-              } else if (value == 'block') {
-                ref.read(friendsProvider.notifier).block(friendship.otherUid!);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'unfriend', child: Text('Unfriend')),
-              PopupMenuItem(value: 'block', child: Text('Block')),
-            ],
-          ),
-        );
-      },
+    return _FriendPresenceTile(
+      friendship: friendship,
+      profile: profile,
     );
   }
 
@@ -415,6 +345,124 @@ class _EmptyState extends StatelessWidget {
             Text(message, textAlign: TextAlign.center),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FriendPresenceTile extends ConsumerWidget {
+  final Friendship friendship;
+  final PublicProfile profile;
+
+  const _FriendPresenceTile({
+    required this.friendship,
+    required this.profile,
+  });
+
+  String _lastSeen(DateTime? lastActiveAt) {
+    if (lastActiveAt == null) return '';
+    final elapsed = DateTime.now().difference(lastActiveAt);
+    if (elapsed.inMinutes < 1) return ' • last seen just now';
+    if (elapsed.inHours < 1) return ' • last seen ${elapsed.inMinutes}m ago';
+    if (elapsed.inDays < 1) return ' • last seen ${elapsed.inHours}h ago';
+    return ' • last seen ${elapsed.inDays}d ago';
+  }
+
+  Widget _avatar(BuildContext context, PublicProfile? profile) {
+    final theme = context.appTheme;
+    final verdant = theme.isVerdantNightDesktop;
+    if (profile?.photoURL.isNotEmpty == true) {
+      return CircleAvatar(
+        child: ClipOval(
+          child: Image.network(
+            profile!.photoURL,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Icon(Icons.person_outline,
+                color: verdant ? theme.button : null),
+          ),
+        ),
+      );
+    }
+    return CircleAvatar(
+      backgroundColor: verdant ? theme.tabActive : null,
+      child: Icon(Icons.person_outline, color: verdant ? theme.button : null),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final otherUid = friendship.otherUid ?? '';
+    final presenceAsync = ref.watch(friendPresenceProvider(otherUid));
+    final presence = presenceAsync.valueOrNull;
+
+    final title = profile.displayName.isNotEmpty
+        ? profile.displayName
+        : '@${profile.username}';
+    final online = presence?.isOnline == true;
+    final listening = presence?.isListening == true;
+    final subtitle = online
+        ? presence!.activity != null
+            ? '${presence.activity!['title'] ?? 'Listening'} • ${presence.activity!['artist'] ?? ''}'
+            : 'Online'
+        : 'Offline${_lastSeen(presence?.lastActiveAt)}';
+
+    return ListTile(
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          _avatar(context, profile),
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 13,
+              height: 13,
+              decoration: BoxDecoration(
+                color: online
+                    ? context.appTheme.nowPlayingAccent
+                    : context.appTheme.subtext.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+                border: Border.all(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    width: 2),
+              ),
+            ),
+          ),
+        ],
+      ),
+      title: Text(title),
+      subtitle: Row(
+        children: [
+          if (listening) ...[
+            Icon(Icons.equalizer,
+                size: 16, color: context.appTheme.nowPlayingAccent),
+            const SizedBox(width: 4),
+          ],
+          Expanded(
+            child: Text(subtitle, overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      ),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FriendProfileScreen(profile: profile),
+        ),
+      ),
+      trailing: PopupMenuButton<String>(
+        onSelected: (value) {
+          if (value == 'unfriend') {
+            ref.read(friendsProvider.notifier).unfriend(friendship);
+          } else if (value == 'block') {
+            ref.read(friendsProvider.notifier).block(otherUid);
+          }
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'unfriend', child: Text('Unfriend')),
+          PopupMenuItem(value: 'block', child: Text('Block')),
+        ],
       ),
     );
   }

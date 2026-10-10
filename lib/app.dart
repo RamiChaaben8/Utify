@@ -496,85 +496,89 @@ class _AppShellState extends ConsumerState<AppShell>
     );
   }
 
-  void _showCreatePlaylistDialog(BuildContext context) {
+  Future<void> _showCreatePlaylistDialog(BuildContext context) async {
     final controller = TextEditingController();
     var visibility = 'private';
     var collaborative = false;
     final isGuest = ref.read(guestSessionProvider);
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          title:
-              const Text('New Playlist', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                style: const TextStyle(color: Colors.white),
-                autofocus: true,
-                decoration: const InputDecoration(hintText: 'Playlist name'),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: visibility,
-                decoration: const InputDecoration(labelText: 'Privacy'),
-                dropdownColor: const Color(0xFF282828),
-                style: const TextStyle(color: Colors.white),
-                items: ['private', 'friends', 'public']
-                    .map((v) => DropdownMenuItem(
-                          value: v,
-                          child: Text(v[0].toUpperCase() + v.substring(1)),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => visibility = v ?? 'private'),
-              ),
-              if (!isGuest)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: collaborative,
-                  title: const Text('Collaborative',
-                      style: TextStyle(color: Colors.white)),
-                  onChanged: (value) =>
-                      setState(() => collaborative = value ?? false),
+    try {
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (ctx, setState) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            title:
+                const Text('New Playlist', style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white),
+                  autofocus: true,
+                  decoration: const InputDecoration(hintText: 'Playlist name'),
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: visibility,
+                  decoration: const InputDecoration(labelText: 'Privacy'),
+                  dropdownColor: const Color(0xFF282828),
+                  style: const TextStyle(color: Colors.white),
+                  items: ['private', 'friends', 'public']
+                      .map((v) => DropdownMenuItem(
+                            value: v,
+                            child: Text(v[0].toUpperCase() + v.substring(1)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => visibility = v ?? 'private'),
+                ),
+                if (!isGuest)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: collaborative,
+                    title: const Text('Collaborative',
+                        style: TextStyle(color: Colors.white)),
+                    onChanged: (value) =>
+                        setState(() => collaborative = value ?? false),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Color(0xFFB3B3B3))),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final name = controller.text.trim();
+                  if (name.isEmpty) return;
+                  try {
+                    await ref.read(libraryProvider.notifier).createPlaylist(
+                          name,
+                          visibility: visibility,
+                          collaborative: collaborative,
+                        );
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  } catch (error) {
+                    if (dialogContext.mounted) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        SnackBar(
+                            content: Text('Could not create playlist: $error')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Create',
+                    style: TextStyle(color: Color(0xFF1DB954))),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Color(0xFFB3B3B3))),
-            ),
-            TextButton(
-              onPressed: () async {
-                final name = controller.text.trim();
-                if (name.isEmpty) return;
-                try {
-                  await ref.read(libraryProvider.notifier).createPlaylist(
-                        name,
-                        visibility: visibility,
-                        collaborative: collaborative,
-                      );
-                  if (dialogContext.mounted) Navigator.pop(dialogContext);
-                } catch (error) {
-                  if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(
-                          content: Text('Could not create playlist: $error')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Create',
-                  style: TextStyle(color: Color(0xFF1DB954))),
-            ),
-          ],
         ),
-      ),
-    );
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showCreatePartySheet() {

@@ -65,6 +65,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
     }
 
     final requestId = ++_requestId;
+    _youtube.clearPrefetchQueue();
     state = state.copyWith(isLoading: true, query: query, clearError: true);
 
     try {
@@ -94,6 +95,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
 
   void clear() {
     _requestId++;
+    _youtube.clearPrefetchQueue();
     state = const SearchState();
   }
 }

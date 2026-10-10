@@ -58,7 +58,7 @@ class CacheSettingsNotifier extends StateNotifier<CacheSettingsState> {
       isLoading: false,
     );
     _sub = AudioCacheService.instance.sizeChanges.listen(_onSizeChanged);
-    _timer = Timer.periodic(const Duration(seconds: 2), (_) => _refreshSize());
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refreshSize());
     unawaited(_refreshSize());
   }
 
@@ -98,6 +98,6 @@ class CacheSettingsNotifier extends StateNotifier<CacheSettingsState> {
 }
 
 final cacheSettingsProvider =
-    StateNotifierProvider<CacheSettingsNotifier, CacheSettingsState>(
+    StateNotifierProvider.autoDispose<CacheSettingsNotifier, CacheSettingsState>(
   (ref) => CacheSettingsNotifier(),
 );

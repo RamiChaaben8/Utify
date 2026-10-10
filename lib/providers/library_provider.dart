@@ -165,9 +165,14 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
   Future<void> _syncLikesToHive(List<Song> liked) async {
     try {
       final box = _hive.likedBox;
+      final currentKeys = box.keys.map((k) => k.toString()).toSet();
+      final newKeys = liked.map((s) => s.id).toSet();
+      if (currentKeys.length == newKeys.length && currentKeys.containsAll(newKeys)) {
+        return;
+      }
       await box.clear();
-      for (final s in liked) {
-        await box.put(s.id, s);
+      if (liked.isNotEmpty) {
+        await box.putAll({for (final s in liked) s.id: s});
       }
     } catch (_) {}
   }

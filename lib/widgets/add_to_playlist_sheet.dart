@@ -63,49 +63,53 @@ class AddToPlaylistSheet extends ConsumerWidget {
     );
   }
 
-  void _showCreatePlaylistDialog(BuildContext context, WidgetRef ref) {
+  Future<void> _showCreatePlaylistDialog(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController();
     final theme = context.appTheme;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.card,
-        title: Text('New Playlist', style: TextStyle(color: theme.text)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: TextStyle(color: theme.text),
-          decoration: InputDecoration(
-            hintText: 'Playlist name',
-            hintStyle: TextStyle(color: theme.subtext),
-          ),
-          onSubmitted: (v) {
-            if (v.trim().isNotEmpty) {
-              ref
-                  .read(libraryProvider.notifier)
-                  .createPlaylist(v.trim());
-            }
-            Navigator.pop(ctx);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: theme.subtext)),
-          ),
-          TextButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
+    try {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: theme.card,
+          title: Text('New Playlist', style: TextStyle(color: theme.text)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: TextStyle(color: theme.text),
+            decoration: InputDecoration(
+              hintText: 'Playlist name',
+              hintStyle: TextStyle(color: theme.subtext),
+            ),
+            onSubmitted: (v) {
+              if (v.trim().isNotEmpty) {
                 ref
                     .read(libraryProvider.notifier)
-                    .createPlaylist(controller.text.trim());
+                    .createPlaylist(v.trim());
               }
               Navigator.pop(ctx);
             },
-            child: Text('Create', style: TextStyle(color: theme.button)),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: TextStyle(color: theme.subtext)),
+            ),
+            TextButton(
+              onPressed: () {
+                if (controller.text.trim().isNotEmpty) {
+                  ref
+                      .read(libraryProvider.notifier)
+                      .createPlaylist(controller.text.trim());
+                }
+                Navigator.pop(ctx);
+              },
+              child: Text('Create', style: TextStyle(color: theme.button)),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 }

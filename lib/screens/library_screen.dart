@@ -358,36 +358,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return items;
   }
 
-  void _showCreateFolderDialog(BuildContext context) {
+  Future<void> _showCreateFolderDialog(BuildContext context) async {
     final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('New folder', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: 'Folder name'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              final name = controller.text.trim();
-              if (name.isEmpty) return;
-              await ref.read(libraryProvider.notifier).createFolder(name);
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            },
-            child: const Text('Create',
-                style: TextStyle(color: Color(0xFF1DB954))),
+    try {
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: const Text('New folder', style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(hintText: 'Folder name'),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel')),
+            TextButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) return;
+                await ref.read(libraryProvider.notifier).createFolder(name);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Create',
+                  style: TextStyle(color: Color(0xFF1DB954))),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showFolderOptions(BuildContext context, String folder) {
@@ -421,31 +425,35 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  void _renameFolder(BuildContext context, String folder) {
+  Future<void> _renameFolder(BuildContext context, String folder) async {
     final controller = TextEditingController(text: folder);
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Rename folder'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              final name = controller.text.trim();
-              if (name.isEmpty) return;
-              await ref
-                  .read(libraryProvider.notifier)
-                  .renameFolder(folder, name);
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+    try {
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Rename folder'),
+          content: TextField(controller: controller, autofocus: true),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel')),
+            TextButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) return;
+                await ref
+                    .read(libraryProvider.notifier)
+                    .renameFolder(folder, name);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   Widget _emptyState(BuildContext context) {
@@ -477,89 +485,93 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  void _showCreatePlaylistDialog(BuildContext context, WidgetRef ref) {
+  Future<void> _showCreatePlaylistDialog(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController();
     var visibility = 'private';
     var collaborative = false;
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          title:
-              const Text('New Playlist', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                style: const TextStyle(color: Colors.white),
-                autofocus: true,
-                decoration: const InputDecoration(hintText: 'Playlist name'),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: visibility,
-                decoration: const InputDecoration(labelText: 'Privacy'),
-                dropdownColor: const Color(0xFF282828),
-                style: const TextStyle(color: Colors.white),
-                items: _playlistVisibilityValues
-                    .map((v) => DropdownMenuItem(
-                          value: v,
-                          child: Text(_playlistVisibilityLabel(v)),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => visibility = v ?? 'private'),
-              ),
-              StatefulBuilder(
-                builder: (context, setInnerState) => CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: collaborative,
-                  title: const Text('Collaborative',
-                      style: TextStyle(color: Colors.white)),
-                  onChanged: (value) {
-                    setInnerState(() => collaborative = value ?? false);
-                    setState(() {});
-                  },
+    try {
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (ctx, setState) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            title:
+                const Text('New Playlist', style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white),
+                  autofocus: true,
+                  decoration: const InputDecoration(hintText: 'Playlist name'),
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: visibility,
+                  decoration: const InputDecoration(labelText: 'Privacy'),
+                  dropdownColor: const Color(0xFF282828),
+                  style: const TextStyle(color: Colors.white),
+                  items: _playlistVisibilityValues
+                      .map((v) => DropdownMenuItem(
+                            value: v,
+                            child: Text(_playlistVisibilityLabel(v)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => visibility = v ?? 'private'),
+                ),
+                StatefulBuilder(
+                  builder: (context, setInnerState) => CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: collaborative,
+                    title: const Text('Collaborative',
+                        style: TextStyle(color: Colors.white)),
+                    onChanged: (value) {
+                      setInnerState(() => collaborative = value ?? false);
+                      setState(() {});
+                    },
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Color(0xFFB3B3B3))),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final name = controller.text.trim();
+                  if (name.isEmpty) return;
+                  try {
+                    await ref.read(libraryProvider.notifier).createPlaylist(
+                          name,
+                          visibility: visibility,
+                          collaborative: collaborative,
+                        );
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  } catch (error) {
+                    if (dialogContext.mounted) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        SnackBar(
+                            content: Text('Could not create playlist: $error')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Create',
+                    style: TextStyle(color: Color(0xFF1DB954))),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Color(0xFFB3B3B3))),
-            ),
-            TextButton(
-              onPressed: () async {
-                final name = controller.text.trim();
-                if (name.isEmpty) return;
-                try {
-                  await ref.read(libraryProvider.notifier).createPlaylist(
-                        name,
-                        visibility: visibility,
-                        collaborative: collaborative,
-                      );
-                  if (dialogContext.mounted) Navigator.pop(dialogContext);
-                } catch (error) {
-                  if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(
-                          content: Text('Could not create playlist: $error')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Create',
-                  style: TextStyle(color: Color(0xFF1DB954))),
-            ),
-          ],
         ),
-      ),
-    );
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showPlaylistOptions(BuildContext context, Playlist pl) {
@@ -833,40 +845,44 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
-  void _showRenameDialog(BuildContext context, Playlist playlist) {
+  Future<void> _showRenameDialog(BuildContext context, Playlist playlist) async {
     final controller = TextEditingController(text: playlist.name);
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('Rename Playlist',
-            style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: Colors.white),
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Playlist name'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Color(0xFFB3B3B3)))),
-          TextButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                ref
-                    .read(libraryProvider.notifier)
-                    .renamePlaylistObj(playlist, controller.text.trim());
-                Navigator.pop(context);
-              }
-            },
-            child:
-                const Text('Save', style: TextStyle(color: Color(0xFF1DB954))),
+    try {
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          title: const Text('Rename Playlist',
+              style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: controller,
+            style: const TextStyle(color: Colors.white),
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Playlist name'),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Color(0xFFB3B3B3)))),
+            TextButton(
+              onPressed: () {
+                if (controller.text.trim().isNotEmpty) {
+                  ref
+                      .read(libraryProvider.notifier)
+                      .renamePlaylistObj(playlist, controller.text.trim());
+                  Navigator.pop(context);
+                }
+              },
+              child:
+                  const Text('Save', style: TextStyle(color: Color(0xFF1DB954))),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showDeleteDialog(BuildContext context, Playlist playlist) {

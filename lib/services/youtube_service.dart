@@ -340,6 +340,8 @@ class YoutubeService {
 
   // ── Prefetch ─────────────────────────────────────────────────────────────
 
+  static const int _kMaxPrefetchQueue = 6;
+
   void prefetchUrl(String videoId) {
     final mem = _mem[videoId];
     if (mem != null && mem.isUsable) return;
@@ -349,8 +351,19 @@ class YoutubeService {
       return; // already cached — no network needed
     }
     if (_inflight.containsKey(videoId) || !_queuedPrefetch.add(videoId)) return;
+
+    if (_prefetchQueue.length >= _kMaxPrefetchQueue) {
+      final dropped = _prefetchQueue.removeLast();
+      _queuedPrefetch.remove(dropped);
+    }
+
     _prefetchQueue.add(videoId);
     _drainPrefetchQueue();
+  }
+
+  void clearPrefetchQueue() {
+    _prefetchQueue.clear();
+    _queuedPrefetch.clear();
   }
 
   void _drainPrefetchQueue() {
