@@ -30,6 +30,7 @@ import 'services/audio_player_service.dart';
 import 'services/audio_handler.dart';
 import 'providers/player_provider.dart';
 import 'providers/guest_session_provider.dart';
+import 'providers/youtube_provider.dart';
 import 'desktop/theme/app_theme.dart';
 
 /// Global handler — initialised once in main(), shared via provider.
@@ -45,23 +46,13 @@ Future<void> _initializeHive() async {
     Hive.openBox<Song>('liked_songs'),
     Hive.openBox<Song>('recently_played'),
     Hive.openBox<Playlist>('playlists'),
-    Hive.openBox<Song>('guest_liked_songs'),
-    Hive.openBox<Song>('guest_recently_played'),
-    Hive.openBox<Playlist>('guest_playlists'),
     Hive.openBox('settings'),
     Hive.openBox('stream_url_cache'),
     // LRU index for the private audio file cache (Android).
     Hive.openBox(kAudioCacheBox),
-    // Disk tier for YT Music feeds.
-    Hive.openBox(kYtMusicFeedBox),
-    // Lyrics cache (LRCLIB) keyed by videoId.
-    Hive.openBox('lrclib_lyrics'),
     // Rich download index (new in downloads-rework).
     Hive.openBox<DownloadIndexEntry>(kDownloadIndexBox),
     // Legacy download path map — kept open for one-time migration.
-    // Opened as untyped Box<dynamic> so Hive never attempts a String cast
-    // on values that may be booleans, ints, or other mixed types from the
-    // original (untyped) box.
     Hive.openBox<dynamic>(kLegacyDownloadBox),
   ]);
 }
@@ -108,8 +99,6 @@ Future<void> main() async {
 
 /// The real main body, called inside the guarded zone.
 Future<void> _appMain() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
   // Cap the decoded-image memory cache (60 MB, 150 items)
   PaintingBinding.instance.imageCache
     ..maximumSizeBytes = 60 << 20
@@ -127,7 +116,7 @@ Future<void> _appMain() async {
   // This lets the app read/write while offline and sync when back online.
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    cacheSizeBytes: 100 * 1024 * 1024,
   );
 
   await hiveInit;
@@ -202,6 +191,7 @@ Future<void> _appMain() async {
       // Give every provider in the tree the same handler instance that
       // audio_service registered — this is how playerProvider gets it.
       audioHandlerProvider.overrideWithValue(audioHandler),
+      youtubeServiceProvider.overrideWithValue(audioHandler.service.youtubeService),
       guestSessionProvider.overrideWith(
         (ref) => GuestSessionNotifier(guestMode),
       ),
@@ -215,7 +205,7 @@ Future<void> _appMain() async {
 void _warmCache() {
   try {
     final lib = LibraryService();
-    final yt = YoutubeService();
+    final yt = audioHandler.service.youtubeService;
 
     // Signed stream URLs are dead weight once they fall inside the 10-minute
     // safety margin. Drop them before anything tries to read the box.

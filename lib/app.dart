@@ -357,6 +357,7 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
   int _currentIndex = 0;
+  final Set<int> _visited = <int>{0};
   static const _androidLifecycleChannel =
       MethodChannel('com.example.testf/lifecycle');
 
@@ -479,7 +480,10 @@ class _AppShellState extends ConsumerState<AppShell>
         onCreatePlaylist: () {
           Navigator.pop(context);
           // Switch to Library tab first, then show dialog
-          setState(() => _currentIndex = 2);
+          setState(() {
+            _currentIndex = 2;
+            _visited.add(2);
+          });
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _showCreatePlaylistDialog(context);
           });
@@ -675,7 +679,10 @@ class _AppShellState extends ConsumerState<AppShell>
         children: [
           IndexedStack(
             index: _currentIndex,
-            children: screens,
+            children: [
+              for (var i = 0; i < screens.length; i++)
+                _visited.contains(i) ? screens[i] : const SizedBox.shrink(),
+            ],
           ),
           const Positioned(
             top: 0,
@@ -707,7 +714,10 @@ class _AppShellState extends ConsumerState<AppShell>
                 // Create — open bottom sheet
                 _showCreateSheet();
               } else {
-                setState(() => _currentIndex = i);
+                setState(() {
+                  _currentIndex = i;
+                  _visited.add(i);
+                });
               }
             },
           ),

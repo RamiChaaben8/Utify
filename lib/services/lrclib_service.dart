@@ -219,61 +219,68 @@ class LrclibService {
     return lines.any((l) => l.start != Duration.zero);
   }
 
-  /// Reads cached lyrics for [videoId].
-///
-/// Returns:
-/// - a list of lines if we have them cached
-/// - an empty list if there's a negative cache entry ("no lyrics")
-/// - null if there's no cached entry at all
-Future<List<LyricLine>?> _readCachedLyrics(String videoId) async {
-  try {
-    final box = Hive.box(_kLrcLibBox);
-    final record = box.get(videoId);
-    if (record is! Map) return null;
-    final type = record['type'];
-    if (type == 'none') {
-      // Negative cache: we already tried and found nothing.
-      return const <LyricLine>[];
+  Future<LazyBox> _getBox() async {
+    if (Hive.isBoxOpen(_kLrcLibBox)) {
+      return Hive.lazyBox(_kLrcLibBox);
     }
-    final syncedStr = record['synced'];
-    final plainStr = record['plain'];
-    if (syncedStr is String && syncedStr.isNotEmpty) {
-      final parsed = _parseLrc(syncedStr);
-      if (parsed.isNotEmpty) return parsed;
-    }
-    if (plainStr is String && plainStr.isNotEmpty) {
-      final parsed = _parsePlain(plainStr);
-      if (parsed.isNotEmpty) return parsed;
-    }
-  } catch (_) {
-    // Cache read failures must not block playback.
+    return await Hive.openLazyBox(_kLrcLibBox);
   }
-  return null;
-}
 
-Future<void> _writeCachedLyrics(String videoId, List<LyricLine> lines) async {
-  try {
-    final box = Hive.box(_kLrcLibBox);
-    if (lines.isEmpty) {
-      // Cache the negative result so repeated hits do not hit the network.
-      await box.put(videoId, {'type': 'none'});
-      return;
+  /// Reads cached lyrics for [videoId].
+  ///
+  /// Returns:
+  /// - a list of lines if we have them cached
+  /// - an empty list if there's a negative cache entry ("no lyrics")
+  /// - null if there's no cached entry at all
+  Future<List<LyricLine>?> _readCachedLyrics(String videoId) async {
+    try {
+      final box = await _getBox();
+      final record = await box.get(videoId);
+      if (record is! Map) return null;
+      final type = record['type'];
+      if (type == 'none') {
+        // Negative cache: we already tried and found nothing.
+        return const <LyricLine>[];
+      }
+      final syncedStr = record['synced'];
+      final plainStr = record['plain'];
+      if (syncedStr is String && syncedStr.isNotEmpty) {
+        final parsed = _parseLrc(syncedStr);
+        if (parsed.isNotEmpty) return parsed;
+      }
+      if (plainStr is String && plainStr.isNotEmpty) {
+        final parsed = _parsePlain(plainStr);
+        if (parsed.isNotEmpty) return parsed;
+      }
+    } catch (_) {
+      // Cache read failures must not block playback.
     }
-    final isSynced = hasSyncedLyrics(lines);
-    String? syncedStr;
-    if (isSynced) {
-      syncedStr = lines.map((l) => '[${l.start.inMilliseconds}]${l.text}').join('\n');
-    }
-    final plainStr = lines.map((l) => l.text).join('\n');
-    await box.put(videoId, {
-      'type': isSynced ? 'synced' : 'plain',
-      if (syncedStr != null) 'synced': syncedStr,
-      'plain': plainStr,
-    });
-  } catch (_) {
-    // Cache write failures are best-effort.
+    return null;
   }
-}
+
+  Future<void> _writeCachedLyrics(String videoId, List<LyricLine> lines) async {
+    try {
+      final box = await _getBox();
+      if (lines.isEmpty) {
+        // Cache the negative result so repeated hits do not hit the network.
+        await box.put(videoId, {'type': 'none'});
+        return;
+      }
+      final isSynced = hasSyncedLyrics(lines);
+      String? syncedStr;
+      if (isSynced) {
+        syncedStr = lines.map((l) => '[${l.start.inMilliseconds}]${l.text}').join('\n');
+      }
+      final plainStr = lines.map((l) => l.text).join('\n');
+      await box.put(videoId, {
+        'type': isSynced ? 'synced' : 'plain',
+        if (syncedStr != null) 'synced': syncedStr,
+        'plain': plainStr,
+      });
+    } catch (_) {
+      // Cache write failures are best-effort.
+    }
+  }
 
   String _buildQuery(Map<String, String> params) {
     return params.entries

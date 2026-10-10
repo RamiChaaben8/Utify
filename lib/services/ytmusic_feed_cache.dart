@@ -49,10 +49,13 @@ class YtMusicFeedCache {
   /// False on desktop, where the whole caching system is disabled.
   bool get isEnabled => cacheSystemEnabled;
 
-  Box? get _box {
-    if (!isEnabled || !Hive.isBoxOpen(kYtMusicFeedBox)) return null;
+  Future<LazyBox?> _getBox() async {
+    if (!isEnabled) return null;
     try {
-      return Hive.box(kYtMusicFeedBox);
+      if (Hive.isBoxOpen(kYtMusicFeedBox)) {
+        return Hive.lazyBox(kYtMusicFeedBox);
+      }
+      return await Hive.openLazyBox(kYtMusicFeedBox);
     } catch (_) {
       return null;
     }
@@ -63,10 +66,10 @@ class YtMusicFeedCache {
   /// Returns the decoded payload for [key], or null when there is nothing
   /// usable on disk.
   Future<Map<String, dynamic>?> read(String key) async {
-    final box = _box;
+    final box = await _getBox();
     if (box == null) return null;
     try {
-      final record = box.get(key);
+      final record = await box.get(key);
       if (record is! Map) return null;
       final raw = record['json'];
       if (raw is! String || raw.isEmpty) return null;
@@ -85,7 +88,7 @@ class YtMusicFeedCache {
   /// Persists [payload] for [key]. Returns without complaint if the cache is
   /// disabled, the box is closed, or the payload is too large.
   Future<void> write(String key, Map<String, dynamic> payload) async {
-    final box = _box;
+    final box = await _getBox();
     if (box == null) return;
     try {
       final encoded = jsonEncode(payload);
@@ -106,7 +109,8 @@ class YtMusicFeedCache {
   /// Removes a single feed, e.g. after a user-initiated refresh.
   Future<void> delete(String key) async {
     try {
-      await _box?.delete(key);
+      final box = await _getBox();
+      await box?.delete(key);
     } catch (e) {
       debugPrint('[FeedCache] delete failed for $key: $e');
     }
@@ -115,7 +119,8 @@ class YtMusicFeedCache {
   /// Drops every cached feed.
   Future<void> clear() async {
     try {
-      await _box?.clear();
+      final box = await _getBox();
+      await box?.clear();
       debugPrint('[FeedCache] cleared all cached feeds');
     } catch (e) {
       debugPrint('[FeedCache] clear failed: $e');
@@ -126,12 +131,12 @@ class YtMusicFeedCache {
 
   /// Total bytes used by the feed cache, for the settings screen.
   Future<int> totalBytes() async {
-    final box = _box;
+    final box = await _getBox();
     if (box == null) return 0;
     var total = 0;
     try {
       for (final key in box.keys) {
-        final record = box.get(key);
+        final record = await box.get(key);
         if (record is Map && record['json'] is String) {
           total += (record['json'] as String).length;
         }
@@ -144,12 +149,12 @@ class YtMusicFeedCache {
 
   /// Drops rows that cannot be decoded any more.
   Future<int> pruneBroken() async {
-    final box = _box;
+    final box = await _getBox();
     if (box == null) return 0;
     final broken = <String>[];
     try {
       for (final key in box.keys) {
-        final record = box.get(key);
+        final record = await box.get(key);
         final raw = record is Map ? record['json'] : null;
         if (raw is! String || raw.isEmpty) {
           broken.add(key.toString());
