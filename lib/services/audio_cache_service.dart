@@ -292,7 +292,7 @@ class AudioCacheService {
   }
 
   /// Removes the cached file (and any temp siblings) for [videoId].
-  Future<void> delete(String videoId) async {
+  Future<void> delete(String videoId, {bool notify = true}) async {
     try {
       final file = await fileFor(videoId);
       if (file != null) {
@@ -310,7 +310,7 @@ class AudioCacheService {
         }
       }
       await _box?.delete(videoId);
-      await _notifySize();
+      if (notify) await _notifySize();
     } catch (e) {
       debugPrint('[AudioCache] delete failed for $videoId: $e');
     }
@@ -476,11 +476,13 @@ class AudioCacheService {
       var freed = 0;
       for (final entry in entries) {
         if (total <= limit) break;
-        await delete(entry.key);
-        final record = _entry(entry.key);
-        final size = (record?['sizeBytes'] as int?) ?? 0;
+        final size = (_entry(entry.key)?['sizeBytes'] as int?) ?? 0;
+        await delete(entry.key, notify: false);
         total -= size;
         freed += size;
+      }
+      if (freed > 0) {
+        await _notifySize();
       }
       debugPrint(
           '[AudioCache] evicted ${entries.length} file(s), freed '

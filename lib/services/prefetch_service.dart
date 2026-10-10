@@ -32,7 +32,7 @@ import 'audio_cache_service.dart';
 import 'youtube_service.dart';
 
 /// How far ahead of the current track we warm.
-const int kPrefetchDepth = 2;
+const int kPrefetchDepth = 1;
 
 /// Upper bound on simultaneous prefetch tasks.
 const int kPrefetchMaxConcurrent = 2;
@@ -50,6 +50,9 @@ class PrefetchService {
 
   /// Ids currently in flight, so a rescheduled task is not duplicated.
   final Set<String> _active = <String>{};
+
+  /// Set of song ids that must not be evicted (current playing track + upcoming prefetched tracks).
+  Set<String> _protect = <String>{};
 
   int _running = 0;
   bool _started = false;
@@ -119,6 +122,7 @@ class PrefetchService {
     cancel();
     if (!_enabled) return;
 
+    _protect = {...protect, ...songs.map((s) => s.id)};
     final generation = _generation;
     final pending = <Song>[];
     for (final song in songs) {
@@ -192,7 +196,7 @@ class PrefetchService {
   /// Runs eviction after a warm download so the cache stays under the limit.
   Future<void> trimCache() async {
     try {
-      await AudioCacheService.instance.evictIfNeeded();
+      await AudioCacheService.instance.evictIfNeeded(protect: _protect);
     } catch (e) {
       debugPrint('[Prefetch] trim failed: $e');
     }
