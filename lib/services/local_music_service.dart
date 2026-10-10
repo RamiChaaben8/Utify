@@ -19,19 +19,23 @@ import 'package:path_provider/path_provider.dart';
 import '../models/song.dart';
 import '../platform/download_storage.dart';
 
-
 const _audioExts = {
-  '.mp3', '.m4a', '.aac', '.ogg', '.flac',
-  '.wav', '.opus', '.webm', '.mp4',
+  '.mp3',
+  '.m4a',
+  '.aac',
+  '.ogg',
+  '.flac',
+  '.wav',
+  '.opus',
+  '.webm',
+  '.mp4',
 };
 
 class LocalMusicService {
-
   Future<List<Song>> scanLocalSongs() async {
     final paths = (await _candidateDirs()).map((dir) => dir.path).toList();
     return Isolate.run(() => _scanLocalMusicPaths(paths));
   }
-
 
   // ── Candidate directories ──────────────────────────────────────────────
 
@@ -57,8 +61,12 @@ class LocalMusicService {
             root = p;
           }
           for (final name in [
-            'Music', 'Download', 'Downloads',
-            'Ringtones', 'Notifications', 'Alarms',
+            'Music',
+            'Download',
+            'Downloads',
+            'Ringtones',
+            'Notifications',
+            'Alarms',
           ]) {
             dirs.add(Directory('${root.path}/$name'));
           }
@@ -86,14 +94,13 @@ class LocalMusicService {
       // /storage/sdcard0 — they are symlinks to /storage/emulated/0
       // and would be deduplicated anyway, but skipping them avoids
       // the resolveSymbolicLinks overhead.
-
     } else if (Platform.isWindows) {
       // Windows: scan standard user music/download folders.
       // USERPROFILE is always set (e.g. C:\Users\username).
       final userProfile = Platform.environment['USERPROFILE'];
       if (userProfile != null) {
-        // Always include the Utify download folder first.
-        dirs.add(Directory('$userProfile\\Music\\Utify'));
+        // Always include the Documents/Utify download folder first.
+        dirs.add(Directory('$userProfile\\Documents\\Utify'));
         dirs.add(Directory('$userProfile\\Music'));
         dirs.add(Directory('$userProfile\\Downloads'));
         dirs.add(Directory('$userProfile\\Desktop'));
@@ -218,7 +225,11 @@ Future<List<Song>> _scanLocalMusicPaths(List<String> paths) async {
     if (!seenDirs.add(canonical)) continue;
     try {
       await service._scanDir(
-        Directory(canonical), songs, seenFiles, seenDirs, maxDepth: 3,
+        Directory(canonical),
+        songs,
+        seenFiles,
+        seenDirs,
+        maxDepth: 3,
       );
     } catch (_) {}
   }
