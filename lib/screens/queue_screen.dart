@@ -17,6 +17,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/artwork_cache_manager.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
 
@@ -552,6 +553,9 @@ class _Thumbnail extends StatelessWidget {
           child: url.isNotEmpty
               ? CachedNetworkImage(
                   imageUrl: url,
+                  cacheManager: ArtworkCacheManager.instance,
+                  memCacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+                  memCacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round(),
                   width: size,
                   height: size,
                   fit: BoxFit.cover,

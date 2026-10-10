@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../services/artwork_cache_manager.dart';
 import '../models/song.dart';
 import '../models/playlist.dart';
 import '../providers/auth_provider.dart';
@@ -687,6 +688,9 @@ class _PlaylistHeader extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         child: CachedNetworkImage(
                           imageUrl: coverSong.thumbnailUrl,
+                          cacheManager: ArtworkCacheManager.instance,
+                          memCacheWidth: (180 * MediaQuery.devicePixelRatioOf(context)).round(),
+                          memCacheHeight: (180 * MediaQuery.devicePixelRatioOf(context)).round(),
                           width: 180,
                           height: 180,
                           fit: BoxFit.cover,

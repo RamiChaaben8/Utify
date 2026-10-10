@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../services/artwork_cache_manager.dart';
 import '../providers/library_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/guest_session_provider.dart';
@@ -1014,6 +1015,8 @@ class _SpotifyPlaylistTile extends StatelessWidget {
     if (thumbnail != null && thumbnail!.isNotEmpty) {
       // Multi-thumbnail mosaic for playlists with songs
       if (playlist != null && playlist!.songs.length >= 4) {
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        final halfSize = (28 * dpr).round();
         return ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: SizedBox(
@@ -1025,6 +1028,9 @@ class _SpotifyPlaylistTile extends StatelessWidget {
               children: playlist!.songs.take(4).map((s) {
                 return CachedNetworkImage(
                   imageUrl: s.thumbnailUrl,
+                  cacheManager: ArtworkCacheManager.instance,
+                  memCacheWidth: halfSize,
+                  memCacheHeight: halfSize,
                   fit: BoxFit.cover,
                   placeholder: (_, __) =>
                       Container(color: const Color(0xFF282828)),
@@ -1037,10 +1043,15 @@ class _SpotifyPlaylistTile extends StatelessWidget {
         );
       }
 
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      final thumbSize = (56 * dpr).round();
       return ClipRRect(
         borderRadius: BorderRadius.circular(4),
         child: CachedNetworkImage(
           imageUrl: thumbnail!,
+          cacheManager: ArtworkCacheManager.instance,
+          memCacheWidth: thumbSize,
+          memCacheHeight: thumbSize,
           width: 56,
           height: 56,
           fit: BoxFit.cover,
@@ -1109,13 +1120,18 @@ class _PlaylistGridCard extends StatelessWidget {
   }
 
   Widget _buildCover() {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
     if (playlist.songs.length >= 4) {
+      final quadSize = (70 * dpr).round(); // typical grid tile is ~140px, half is 70px
       return GridView.count(
         crossAxisCount: 2,
         physics: const NeverScrollableScrollPhysics(),
         children: playlist.songs.take(4).map((s) {
           return CachedNetworkImage(
             imageUrl: s.thumbnailUrl,
+            cacheManager: ArtworkCacheManager.instance,
+            memCacheWidth: quadSize,
+            memCacheHeight: quadSize,
             fit: BoxFit.cover,
             placeholder: (_, __) => Container(color: const Color(0xFF282828)),
             errorWidget: (_, __, ___) =>
@@ -1125,8 +1141,12 @@ class _PlaylistGridCard extends StatelessWidget {
       );
     }
     if (playlist.coverThumbnail != null) {
+      final fullSize = (140 * dpr).round();
       return CachedNetworkImage(
         imageUrl: playlist.coverThumbnail!,
+        cacheManager: ArtworkCacheManager.instance,
+        memCacheWidth: fullSize,
+        memCacheHeight: fullSize,
         fit: BoxFit.cover,
         placeholder: (_, __) => Container(color: const Color(0xFF282828)),
         errorWidget: (_, __, ___) => Container(color: const Color(0xFF282828)),

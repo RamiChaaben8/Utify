@@ -8,6 +8,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../services/artwork_cache_manager.dart';
+
 class VideoPreviewWidget extends StatelessWidget {
   final String imageUrl;
   final BoxFit fit;
@@ -37,6 +39,7 @@ class VideoPreviewWidget extends StatelessWidget {
     return _sized(
       CachedNetworkImage(
         imageUrl: image,
+        cacheManager: ArtworkCacheManager.instance,
         fit: fit,
         placeholder: (_, __) => placeholder,
         errorWidget: (_, __, ___) => placeholder,

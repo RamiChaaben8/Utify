@@ -34,6 +34,7 @@ import '../widgets/add_to_playlist_sheet.dart';
 import '../widgets/video_preview_widget.dart';
 import '../widgets/device_picker.dart';
 import '../widgets/listen_party_controls.dart';
+import '../services/artwork_cache_manager.dart';
 import '../services/youtube_service.dart';
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
@@ -356,6 +357,9 @@ class _PlayerPage extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(4),
                 child: CachedNetworkImage(
                   imageUrl: song.thumbnailUrl,
+                  cacheManager: ArtworkCacheManager.instance,
+                  memCacheWidth: (56 * MediaQuery.devicePixelRatioOf(context)).round(),
+                  memCacheHeight: (56 * MediaQuery.devicePixelRatioOf(context)).round(),
                   width: 56,
                   height: 56,
                   fit: BoxFit.cover,

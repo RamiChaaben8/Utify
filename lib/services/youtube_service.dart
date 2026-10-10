@@ -435,11 +435,7 @@ class YoutubeService {
   }
 
   Song _videoToSong(Video video) {
-    final thumb = video.thumbnails.maxResUrl.isNotEmpty
-        ? video.thumbnails.maxResUrl
-        : video.thumbnails.highResUrl.isNotEmpty
-            ? video.thumbnails.highResUrl
-            : video.thumbnails.mediumResUrl;
+    final thumb = 'https://i.ytimg.com/vi/${video.id.value}/mqdefault.jpg';
     return Song(
       id: video.id.value,
       title: video.title,

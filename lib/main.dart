@@ -110,6 +110,11 @@ Future<void> main() async {
 Future<void> _appMain() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Cap the decoded-image memory cache (60 MB, 150 items)
+  PaintingBinding.instance.imageCache
+    ..maximumSizeBytes = 60 << 20
+    ..maximumSize = 150;
+
   final firebaseInit = Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

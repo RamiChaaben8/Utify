@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/artwork_cache_manager.dart';
 import '../models/playlist.dart';
 import '../providers/library_provider.dart';
 import '../screens/playlist_screen.dart';
@@ -89,6 +90,9 @@ class _FriendProfileScreenState extends ConsumerState<FriendProfileScreen> {
                 borderRadius: BorderRadius.circular(6),
                 child: CachedNetworkImage(
                   imageUrl: playlist.coverThumbnail!,
+                  cacheManager: ArtworkCacheManager.instance,
+                  memCacheWidth: (52 * MediaQuery.devicePixelRatioOf(context)).round(),
+                  memCacheHeight: (52 * MediaQuery.devicePixelRatioOf(context)).round(),
                   width: 52,
                   height: 52,
                   fit: BoxFit.cover,

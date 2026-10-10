@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../services/artwork_cache_manager.dart';
 import '../models/song.dart';
 import '../providers/youtube_provider.dart';
 import '../providers/player_provider.dart';
@@ -455,6 +456,9 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
                     aspectRatio: 16 / 9,
                     child: CachedNetworkImage(
                       imageUrl: song.thumbnailUrl,
+                      cacheManager: ArtworkCacheManager.instance,
+                      memCacheWidth: (320 * MediaQuery.devicePixelRatioOf(context)).round(),
+                      memCacheHeight: (180 * MediaQuery.devicePixelRatioOf(context)).round(),
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(
                         color: const Color(0xFF212121),

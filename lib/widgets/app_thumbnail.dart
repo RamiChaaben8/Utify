@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../services/artwork_cache_manager.dart';
 import '../utils/thumbnail_url.dart';
 
 /// Reusable image widget for song/video/album thumbnails across mobile and desktop.
@@ -127,6 +128,10 @@ class _AppThumbnailState extends State<AppThumbnail> {
       );
     }
 
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final memWidth = widget.width == null ? null : (widget.width! * dpr).round();
+    final memHeight = widget.height == null ? null : (widget.height! * dpr).round();
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(widget.borderRadius),
       child: SizedBox(
@@ -134,6 +139,9 @@ class _AppThumbnailState extends State<AppThumbnail> {
         height: widget.height,
         child: CachedNetworkImage(
           imageUrl: effectiveUrl,
+          cacheManager: ArtworkCacheManager.instance,
+          memCacheWidth: memWidth,
+          memCacheHeight: memHeight,
           width: widget.width,
           height: widget.height,
           fit: widget.fit,
@@ -141,7 +149,9 @@ class _AppThumbnailState extends State<AppThumbnail> {
           fadeOutDuration: const Duration(milliseconds: 150),
           placeholder: (_, __) => placeholder,
           errorWidget: (ctx, url, err) {
-            _handleError(err, null);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _handleError(err, null);
+            });
             return errorWidget;
           },
         ),
