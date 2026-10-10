@@ -768,52 +768,57 @@ class _LyricsPage extends ConsumerWidget {
         initialChildSize: 0.9,
         maxChildSize: 0.95,
         minChildSize: 0.4,
-        builder: (ctx, scroll) => Column(
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white30,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Text(
-                'Lyrics',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+        builder: (ctx, scroll) => Consumer(
+          builder: (context, ref, _) {
+            final position = ref.watch(playerProvider.select((s) => s.position));
+            return Column(
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white30,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-            ),
-            Expanded(
-              child: Directionality(
-                textDirection:
-                    lyrics.isArabic ? TextDirection.rtl : TextDirection.ltr,
-                child: ListView.builder(
-                  controller: scroll,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  itemCount: lyrics.lines.length,
-                  itemBuilder: (_, i) {
-                    final line = lyrics.lines[i];
-                    final isActive = position >= line.start &&
-                        (i == lyrics.lines.length - 1 ||
-                            position < lyrics.lines[i + 1].start);
-                    return _MobileLyricLine(
-                      line: line,
-                      isActive: isActive,
-                      isPast: i < _activeLineIndex(lyrics, position),
-                      position: position,
-                    );
-                  },
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Text(
+                    'Lyrics',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
+                Expanded(
+                  child: Directionality(
+                    textDirection:
+                        lyrics.isArabic ? TextDirection.rtl : TextDirection.ltr,
+                    child: ListView.builder(
+                      controller: scroll,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      itemCount: lyrics.lines.length,
+                      itemBuilder: (_, i) {
+                        final line = lyrics.lines[i];
+                        final isActive = position >= line.start &&
+                            (i == lyrics.lines.length - 1 ||
+                                position < lyrics.lines[i + 1].start);
+                        return _MobileLyricLine(
+                          line: line,
+                          isActive: isActive,
+                          isPast: i < _activeLineIndex(lyrics, position),
+                          position: position,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

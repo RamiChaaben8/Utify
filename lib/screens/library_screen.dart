@@ -969,7 +969,7 @@ class _SpotifyPlaylistTile extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       onTap: onTap,
-      leading: _buildThumbnail(),
+      leading: _buildThumbnail(context),
       title: Text(
         title,
         style: const TextStyle(
@@ -1000,7 +1000,7 @@ class _SpotifyPlaylistTile extends StatelessWidget {
     );
   }
 
-  Widget _buildThumbnail() {
+  Widget _buildThumbnail(BuildContext context) {
     if (customIcon != null) {
       return Container(
         width: 56,
@@ -1114,7 +1114,7 @@ class _PlaylistGridCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             child: AspectRatio(
               aspectRatio: 1,
-              child: _buildCover(),
+              child: _buildCover(context),
             ),
           ),
           const SizedBox(height: 6),
@@ -1135,7 +1135,7 @@ class _PlaylistGridCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCover() {
+  Widget _buildCover(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     if (playlist.songs.length >= 4) {
       final quadSize = (70 * dpr).round(); // typical grid tile is ~140px, half is 70px
