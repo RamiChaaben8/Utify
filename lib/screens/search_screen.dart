@@ -29,6 +29,7 @@ import '../screens/artist_screen.dart';
 import '../screens/album_screen.dart';
 import '../providers/search_history_provider.dart';
 import '../widgets/profile_avatar.dart';
+import '../utils/text_metrics.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -819,6 +820,18 @@ class _SearchHistoryOrEmpty extends ConsumerWidget {
 
 // ─── Artist / album extras ────────────────────────────────────────────────────
 
+/// Card title / subtitle styles, hoisted so the row heights below can be
+/// measured from the same styles the cards render with.
+const TextStyle _cardTitleStyle = TextStyle(
+  color: Colors.white,
+  fontSize: 12,
+  fontWeight: FontWeight.w600,
+);
+const TextStyle _cardSubtitleStyle = TextStyle(
+  color: Color(0xFF8A8A8A),
+  fontSize: 11,
+);
+
 /// Artist and album matches, shown above the song results on mobile search.
 class _ExtrasSection extends StatelessWidget {
   final List<YtArtist> artists;
@@ -835,13 +848,26 @@ class _ExtrasSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Cover + gap + the text block + a little padding. Measured rather than
+    // hard-coded so a large system font cannot push the subtitle out of the
+    // fixed-height row.
+    final artistRowHeight = 110 +
+        6 +
+        scaledTextHeight(context, _cardTitleStyle, 1) +
+        16;
+    final albumRowHeight = 120 +
+        6 +
+        scaledTextHeight(context, _cardTitleStyle, 1) +
+        scaledTextHeight(context, _cardSubtitleStyle, 1) +
+        16;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (artists.isNotEmpty) ...[
           const _ExtrasHeading('Artists'),
           SizedBox(
-            height: 150,
+            height: artistRowHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -873,11 +899,7 @@ class _ExtrasSection extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: _cardTitleStyle,
                         ),
                       ],
                     ),
@@ -890,7 +912,7 @@ class _ExtrasSection extends StatelessWidget {
         if (albums.isNotEmpty) ...[
           const _ExtrasHeading('Albums'),
           SizedBox(
-            height: 178,
+            height: albumRowHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -923,11 +945,7 @@ class _ExtrasSection extends StatelessWidget {
                           a.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: _cardTitleStyle,
                         ),
                         Text(
                           [
@@ -936,8 +954,7 @@ class _ExtrasSection extends StatelessWidget {
                           ].join(' • '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Color(0xFF8A8A8A), fontSize: 11),
+                          style: _cardSubtitleStyle,
                         ),
                       ],
                     ),

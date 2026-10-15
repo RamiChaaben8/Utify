@@ -107,7 +107,7 @@ class AppLayoutTokens {
     squareNowPlayingArt: false,
   );
 
-  static const verdantNight = AppLayoutTokens(
+  static const modern = AppLayoutTokens(
     sidebarWidth: 0,
     sidebarWidthRatio: 0.22,
     sidebarMinWidth: 360,
@@ -182,6 +182,12 @@ class AppThemeData {
   /// Foreground for [notificationError] fills (destructive confirm buttons).
   final Color onErrorFill;
 
+  /// Accent hue for text and glyphs that should pop — headings, active rows and
+  /// the playing indicator. Green and Red keep their accent in [button];
+  /// Verdant Night keeps it in [text] (lime), so reading [button] there gives
+  /// the wrong hue.
+  final Color highlightAccent;
+
   final Color? lyricsCard;
   final Color? dividerToken;
   final Color? scrollbarToken;
@@ -207,6 +213,7 @@ class AppThemeData {
     required this.warning,
     required this.onButtonFill,
     required this.onErrorFill,
+    required this.highlightAccent,
     required this.tabActive,
     required this.misc,
     this.lyricsCard,
@@ -218,8 +225,8 @@ class AppThemeData {
 
   Color get border => shadow;
   Color get bgColor => main;
-  Color get panelColor => isVerdantNightDesktop ? sidebar : main;
-  Color get panelSurfaceColor => isVerdantNightDesktop ? sidebar : main;
+  Color get panelColor => usesModernDesign ? sidebar : main;
+  Color get panelSurfaceColor => usesModernDesign ? sidebar : main;
   Color get panelLight => card;
   Color get cardColor => card;
   Color get textPrimary => text;
@@ -227,20 +234,19 @@ class AppThemeData {
   Color get accent => button;
 
   /// Accent for "something is playing / active right now" — the playing song
-  /// title, the play/pause glyph and the equalizer bars.
+  /// title, the play/pause glyph, headings and highlighted rows.
   ///
-  /// Same colour as [accent] in Green and Red. Verdant Night has moved its
-  /// accent to [text] (lime) and demoted [button] to a darker green used for
-  /// filled surfaces, so reading [accent] there would give the wrong hue.
-  Color get nowPlayingAccent => isVerdantNightDesktop ? text : button;
+  /// Alias of [highlightAccent]: the same colour as [accent] in Green and Red,
+  /// lime ([text]) in Verdant Night.
+  Color get nowPlayingAccent => highlightAccent;
 
   Brightness get brightness => ThemeData.estimateBrightnessForColor(main);
   Color get lyricsCardColor => lyricsCard ?? card;
   Color get dividerColor => dividerToken ?? shadow;
   Color get scrollbarThumbColor => scrollbarToken ?? subtext;
   Color get headerGradientColor => headerGradientToken ?? shadow;
-  Color get iconDefault => isVerdantNightDesktop ? subtext : text;
-  Color get iconHover => isVerdantNightDesktop ? const Color(0xFFFFFFFF) : text;
+  Color get iconDefault => usesModernDesign ? subtext : text;
+  Color get iconHover => usesModernDesign ? const Color(0xFFFFFFFF) : text;
   ButtonStyle get iconButtonStyle => ButtonStyle(
         foregroundColor: WidgetStateProperty.resolveWith((states) => states.any(
                 (state) =>
@@ -251,25 +257,25 @@ class AppThemeData {
             : iconDefault),
       );
   Color get lyricsLabelColor =>
-      isVerdantNightDesktop ? const Color(0xB3FFFFFF) : button;
+      usesModernDesign ? const Color(0xB3FFFFFF) : button;
   Color get lyricsActiveLineColor =>
-      isVerdantNightDesktop ? const Color(0xFFFFFFFF) : text;
-  Color get lyricsInactiveLineColor => isVerdantNightDesktop
+      usesModernDesign ? const Color(0xFFFFFFFF) : text;
+  Color get lyricsInactiveLineColor => usesModernDesign
       ? const Color(0x8CFFFFFF)
       : text.withValues(alpha: 0.38);
   Color get playIconColor =>
-      isVerdantNightDesktop ? const Color(0xFF121212) : text;
+      usesModernDesign ? const Color(0xFF121212) : text;
 
   /// Label/icon colour for anything painted onto a [button]-coloured fill.
   /// Alias of [onButtonFill] kept for call sites that read better as
   /// "the colour that goes on the accent".
   Color get onAccent => onButtonFill;
   Color iconColor(Color legacy, {bool hovered = false}) =>
-      isVerdantNightDesktop ? (hovered ? iconHover : iconDefault) : legacy;
+      usesModernDesign ? (hovered ? iconHover : iconDefault) : legacy;
   AppLayoutTokens get layout =>
       isDesktopLayout ? layoutTokens : AppLayoutTokens.defaults;
-  bool get isVerdantNightDesktop =>
-      isDesktopLayout && identical(layoutTokens, AppLayoutTokens.verdantNight);
+  bool get usesModernDesign =>
+      isDesktopLayout && identical(layoutTokens, AppLayoutTokens.modern);
 
   static const green = AppThemeData(
     name: 'Green',
@@ -290,8 +296,10 @@ class AppThemeData {
     warning: Color(0xFFFFA000),
     onButtonFill: Color(0xFF0F0F0F),
     onErrorFill: Color(0xFFFFFFFF),
+    highlightAccent: Color(0xFF1DB954),
     tabActive: Color(0xFF1A3321),
     misc: Color(0xFF7B4FE9),
+    layoutTokens: AppLayoutTokens.modern,
   );
 
   static const red = AppThemeData(
@@ -313,8 +321,10 @@ class AppThemeData {
     warning: Color(0xFFFFA000),
     onButtonFill: Color(0xFFFFFFFF),
     onErrorFill: Color(0xFF1A0A00),
+    highlightAccent: Color(0xFFE8173A),
     tabActive: Color(0xFF4A1C27),
     misc: Color(0xFFE08A3E),
+    layoutTokens: AppLayoutTokens.modern,
   );
 
   static const verdantNight = AppThemeData(
@@ -336,13 +346,14 @@ class AppThemeData {
     warning: Color(0xFFFFA000),
     onButtonFill: Color(0xFF121212),
     onErrorFill: Color(0xFFFFFFFF),
+    highlightAccent: Color(0xFF7FD13B),
     tabActive: Color(0xFF2A3D22),
     misc: Color(0xFF6B1A24),
     lyricsCard: Color(0xFF5A1520),
     dividerToken: Color(0x14FFFFFF),
     scrollbarToken: Color(0xFF5A5A5A),
     headerGradientToken: Color(0x995A1520),
-    layoutTokens: AppLayoutTokens.verdantNight,
+    layoutTokens: AppLayoutTokens.modern,
   );
 
   static const all = [

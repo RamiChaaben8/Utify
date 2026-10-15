@@ -30,7 +30,7 @@ class DesktopApp extends StatelessWidget {
       scaffoldBackgroundColor: t.main,
       colorScheme: ColorScheme(
         brightness: t.brightness,
-        primary: t.isVerdantNightDesktop ? t.text : t.button,
+        primary: t.nowPlayingAccent,
         secondary: t.button,
         surface: t.main,
         onSurface: t.text,
@@ -66,19 +66,19 @@ class DesktopApp extends StatelessWidget {
         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       iconTheme: IconThemeData(
-          color: t.isVerdantNightDesktop ? t.iconDefault : t.text),
-      iconButtonTheme: t.isVerdantNightDesktop
+          color: t.usesModernDesign ? t.iconDefault : t.text),
+      iconButtonTheme: t.usesModernDesign
           ? IconButtonThemeData(style: t.iconButtonStyle)
           : const IconButtonThemeData(),
-      tabBarTheme: t.isVerdantNightDesktop
+      tabBarTheme: t.usesModernDesign
           ? TabBarThemeData(
-              labelColor: t.text,
+              labelColor: t.nowPlayingAccent,
               unselectedLabelColor: t.subtext,
-              indicatorColor: t.text,
+              indicatorColor: t.nowPlayingAccent,
             )
           : const TabBarThemeData(),
       progressIndicatorTheme: ProgressIndicatorThemeData(
-          color: t.isVerdantNightDesktop ? t.subtext : t.button),
+          color: t.usesModernDesign ? t.subtext : t.button),
       sliderTheme: SliderThemeData(
         activeTrackColor: t.button,
         inactiveTrackColor: t.shadow,
@@ -89,7 +89,7 @@ class DesktopApp extends StatelessWidget {
       ),
       scrollbarTheme: ScrollbarThemeData(
         thumbColor: WidgetStateProperty.all(
-            t.isVerdantNightDesktop ? t.scrollbarThumbColor : t.button),
+            t.usesModernDesign ? t.scrollbarThumbColor : t.button),
         thickness: WidgetStateProperty.all(4),
         radius: const Radius.circular(2),
       ),

@@ -302,7 +302,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
 
   Widget _avatar(PublicProfile? profile) {
     final theme = context.appTheme;
-    final verdant = theme.isVerdantNightDesktop;
+    final modern = theme.usesModernDesign;
     if (profile?.photoURL.isNotEmpty == true) {
       return CircleAvatar(
         child: ClipOval(
@@ -312,14 +312,14 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
             height: 40,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => Icon(Icons.person_outline,
-                color: verdant ? theme.button : null),
+                color: modern ? theme.button : null),
           ),
         ),
       );
     }
     return CircleAvatar(
-      backgroundColor: verdant ? theme.tabActive : null,
-      child: Icon(Icons.person_outline, color: verdant ? theme.button : null),
+      backgroundColor: modern ? theme.tabActive : null,
+      child: Icon(Icons.person_outline, color: modern ? theme.button : null),
     );
   }
 }
@@ -370,7 +370,7 @@ class _FriendPresenceTile extends ConsumerWidget {
 
   Widget _avatar(BuildContext context, PublicProfile? profile) {
     final theme = context.appTheme;
-    final verdant = theme.isVerdantNightDesktop;
+    final modern = theme.usesModernDesign;
     if (profile?.photoURL.isNotEmpty == true) {
       return CircleAvatar(
         child: ClipOval(
@@ -380,14 +380,14 @@ class _FriendPresenceTile extends ConsumerWidget {
             height: 40,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => Icon(Icons.person_outline,
-                color: verdant ? theme.button : null),
+                color: modern ? theme.button : null),
           ),
         ),
       );
     }
     return CircleAvatar(
-      backgroundColor: verdant ? theme.tabActive : null,
-      child: Icon(Icons.person_outline, color: verdant ? theme.button : null),
+      backgroundColor: modern ? theme.tabActive : null,
+      child: Icon(Icons.person_outline, color: modern ? theme.button : null),
     );
   }
 

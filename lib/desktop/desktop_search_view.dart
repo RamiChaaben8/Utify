@@ -14,6 +14,7 @@ import '../providers/youtube_provider.dart';
 import '../providers/ytmusic_home_provider.dart';
 import '../widgets/song_context_menu.dart';
 import '../widgets/artist_link.dart';
+import '../utils/text_metrics.dart';
 import 'shell/desktop_navigation.dart';
 import 'theme/desktop_theme.dart';
 
@@ -69,7 +70,7 @@ class _DesktopSearchViewState extends ConsumerState<DesktopSearchView> {
     if (searchState.isLoading) {
       return Center(
         child: CircularProgressIndicator(
-            color: context.appTheme.isVerdantNightDesktop
+            color: context.appTheme.usesModernDesign
                 ? context.appTheme.subtext
                 : context.appTheme.button),
       );
@@ -258,8 +259,8 @@ class _SearchResultRowState extends ConsumerState<_SearchResultRow> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: isCurrent && !context.appTheme.isVerdantNightDesktop
-                              ? context.appTheme.button
+                          color: isCurrent
+                              ? context.appTheme.nowPlayingAccent
                               : context.appTheme.text,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -271,8 +272,9 @@ class _SearchResultRowState extends ConsumerState<_SearchResultRow> {
                         fallbackName: widget.song.channelName,
                         maxLines: 1,
                         style: TextStyle(
-                          color: isCurrent && !context.appTheme.isVerdantNightDesktop
-                              ? context.appTheme.button.withValues(alpha: 0.7)
+                          color: isCurrent
+                              ? context.appTheme.nowPlayingAccent
+                                  .withValues(alpha: 0.7)
                               : context.appTheme.subtext,
                           fontSize: 12,
                         ),
@@ -294,8 +296,9 @@ class _SearchResultRowState extends ConsumerState<_SearchResultRow> {
                     child: Text(
                       widget.durationStr,
                       style: TextStyle(
-                        color: isCurrent && !context.appTheme.isVerdantNightDesktop
-                            ? context.appTheme.button.withValues(alpha: 0.7)
+                        color: isCurrent
+                            ? context.appTheme.nowPlayingAccent
+                                .withValues(alpha: 0.7)
                             : context.appTheme.subtext,
                         fontSize: 13,
                       ),
@@ -344,6 +347,24 @@ class _SearchResultRowState extends ConsumerState<_SearchResultRow> {
 
 // ─── Artist / album results header ────────────────────────────────────────────
 
+/// Card text styles, hoisted so the row heights below are measured from the
+/// same styles the cards render with.
+TextStyle _extraArtistTitleStyle(AppThemeData theme) => TextStyle(
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+    );
+
+TextStyle _extraAlbumTitleStyle(AppThemeData theme) => TextStyle(
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      height: 1.3,
+    );
+
+TextStyle _extraAlbumSubtitleStyle(AppThemeData theme) =>
+    TextStyle(color: theme.subtext, fontSize: 11);
+
 /// Rendered as the first item of the desktop result list: the artist and
 /// album matches from YouTube Music, above the song rows.
 class _SearchExtras extends ConsumerWidget {
@@ -353,13 +374,28 @@ class _SearchExtras extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = context.appTheme;
+    // Cover + gap + the text block + padding. Measured rather than hard-coded
+    // so a large system font (or a two-line album title) cannot overflow the
+    // fixed-height row.
+    final artistRowHeight = 120 +
+        8 +
+        scaledTextHeight(context, _extraArtistTitleStyle(theme), 1) +
+        16;
+    final albumRowHeight = 150 +
+        8 +
+        scaledTextHeight(context, _extraAlbumTitleStyle(theme), 2) +
+        2 +
+        scaledTextHeight(context, _extraAlbumSubtitleStyle(theme), 1) +
+        16;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (extras.artists.isNotEmpty) ...[
           const _ExtrasLabel('Artists'),
           SizedBox(
-            height: 168,
+            height: artistRowHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -374,7 +410,7 @@ class _SearchExtras extends ConsumerWidget {
         if (extras.albums.isNotEmpty) ...[
           const _ExtrasLabel('Albums'),
           SizedBox(
-            height: 200,
+            height: albumRowHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -465,11 +501,7 @@ class _ExtraArtistCardState extends ConsumerState<_ExtraArtistCard> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: _extraArtistTitleStyle(theme),
               ),
             ],
           ),
@@ -535,19 +567,14 @@ class _ExtraAlbumCardState extends ConsumerState<_ExtraAlbumCard> {
                 a.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  height: 1.3,
-                ),
+                style: _extraAlbumTitleStyle(theme),
               ),
               const SizedBox(height: 2),
               Text(
                 [a.typeLabel, if (a.year != null) '${a.year}'].join(' • '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: theme.subtext, fontSize: 11),
+                style: _extraAlbumSubtitleStyle(theme),
               ),
             ],
           ),

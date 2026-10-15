@@ -208,7 +208,7 @@ class _PlaylistHeader extends ConsumerWidget {
         Duration.zero, (total, song) => total + song.duration);
 
     return Container(
-      decoration: context.appTheme.isVerdantNightDesktop
+      decoration: context.appTheme.usesModernDesign
           ? BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -276,10 +276,8 @@ class _PlaylistHeader extends ConsumerWidget {
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           border: Border.all(
-                              color: context.appTheme.isVerdantNightDesktop
-                                  ? context.appTheme.text
-                                  : context.appTheme.button,
-                              width: context.appTheme.isVerdantNightDesktop
+                              color: context.appTheme.nowPlayingAccent,
+                              width: context.appTheme.usesModernDesign
                                   ? 1
                                   : 1.5),
                           borderRadius: BorderRadius.circular(6),
@@ -287,9 +285,7 @@ class _PlaylistHeader extends ConsumerWidget {
                         child: Text(
                           '${playlist.visibility[0].toUpperCase()}${playlist.visibility.substring(1)} Playlist',
                           style: TextStyle(
-                            color: context.appTheme.isVerdantNightDesktop
-                                ? context.appTheme.text
-                                : context.appTheme.button,
+                            color: context.appTheme.nowPlayingAccent,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -301,9 +297,7 @@ class _PlaylistHeader extends ConsumerWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: context.appTheme.isVerdantNightDesktop
-                              ? context.appTheme.text
-                              : context.appTheme.button,
+                          color: context.appTheme.nowPlayingAccent,
                           fontSize: PlaylistSizes.headerTitle,
                           height: 0.98,
                           fontWeight: FontWeight.bold,
@@ -353,9 +347,7 @@ class _PlaylistHeader extends ConsumerWidget {
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: context.appTheme.button,
-                    foregroundColor: context.appTheme.isVerdantNightDesktop
-                        ? context.appTheme.playIconColor
-                        : context.appTheme.text,
+                    foregroundColor: context.appTheme.playIconColor,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24, vertical: 14),
                     shape: const StadiumBorder(),
@@ -560,7 +552,7 @@ class _DownloadButton extends ConsumerWidget {
                     child: CircularProgressIndicator(
                       value: avgProgress > 0 ? avgProgress : null,
                       strokeWidth: 2.5,
-                      color: context.appTheme.isVerdantNightDesktop
+                      color: context.appTheme.usesModernDesign
                           ? context.appTheme.subtext
                           : context.appTheme.button,
                       backgroundColor:
@@ -852,7 +844,7 @@ class _SongDownloadIndicator extends ConsumerWidget {
               child: CircularProgressIndicator(
                 value: progress > 0 ? progress : null,
                 strokeWidth: 2,
-                color: context.appTheme.isVerdantNightDesktop
+                color: context.appTheme.usesModernDesign
                     ? context.appTheme.subtext
                     : context.appTheme.button,
                 backgroundColor:

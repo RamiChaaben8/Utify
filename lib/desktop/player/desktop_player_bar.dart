@@ -94,7 +94,7 @@ class _DesktopPlayerBarState extends ConsumerState<DesktopPlayerBar> {
       height: skin.barHeight,
       decoration: BoxDecoration(
         color: skin.barBackground,
-        borderRadius: context.appTheme.isVerdantNightDesktop
+        borderRadius: context.appTheme.usesModernDesign
             ? BorderRadius.only(
                 topLeft: Radius.circular(layout.panelRadius),
                 topRight: Radius.circular(layout.panelRadius),
@@ -200,9 +200,10 @@ const double kMinSliderWidth = 64;
 
 /// Visual configuration for the player bar.
 ///
-/// [classic] reproduces the original look used by every theme, while [verdant]
-/// is the flatter, Spotify-like treatment. Only Verdant Night uses it for now —
-/// the rest of the bar reads from here so there is a single layout code path.
+/// [modern] is the flatter, Spotify-like treatment that every desktop theme now
+/// uses; [classic] is the original look, kept as a fallback for non-desktop
+/// layouts. The rest of the bar reads from here so there is a single layout code
+/// path.
 class _PlayerBarSkin {
   final Color barBackground;
   final Color accent;
@@ -281,8 +282,8 @@ class _PlayerBarSkin {
 
   factory _PlayerBarSkin.of(BuildContext context) {
     final t = context.appTheme;
-    return t.isVerdantNightDesktop
-        ? _PlayerBarSkin.verdant(t)
+    return t.usesModernDesign
+        ? _PlayerBarSkin.modern(t)
         : _PlayerBarSkin.classic(t);
   }
 
@@ -292,7 +293,7 @@ class _PlayerBarSkin {
   /// literals were near-misses (`#7DC143` vs the theme's `#7FD13B`, `#202020`
   /// vs `#1C1C1C`), which split the lime down the middle of the screen and left
   /// the bar matching no panel in the app.
-  factory _PlayerBarSkin.verdant(AppThemeData t) {
+  factory _PlayerBarSkin.modern(AppThemeData t) {
     final layout = t.layout;
     return _PlayerBarSkin(
       barBackground: t.player,
@@ -301,7 +302,7 @@ class _PlayerBarSkin {
       primaryIcon: t.subtext,
       secondaryIcon: t.subtext,
       sideIcon: t.subtext,
-      activeIcon: t.iconHover,
+      activeIcon: t.nowPlayingAccent,
       hoverIcon: t.iconHover,
       sliderTrack: t.shadow,
       barHeight: layout.playerBarHeight,
@@ -595,9 +596,7 @@ class _SongInfo extends ConsumerWidget {
                   Text(
                     'Next',
                     style: TextStyle(
-                      color: context.appTheme.isVerdantNightDesktop
-                          ? context.appTheme.text
-                          : context.appTheme.button,
+                      color: context.appTheme.nowPlayingAccent,
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,

@@ -20,7 +20,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:http/http.dart' as http;
 
 import '../models/artist_ref.dart';
@@ -1598,18 +1598,26 @@ class YtMusicService {
   ///
   /// Results are keyed by the normalised query, so revisiting a search term is
   /// instant and a re-search updates the list in place.
-  Future<List<YtSong>> searchSongs(String query) {
+  /// Searches YouTube Music for songs matching [query].
+  ///
+  /// [curated] applies the app's junk filter (drops mixes, slowed edits and
+  /// tracks over ten minutes). The home feed and radio want that; an explicit
+  /// search does not, so the search screens pass `curated: false`.
+  Future<List<YtSong>> searchSongs(String query, {bool curated = true}) {
     if (query.trim().isEmpty) return Future.value(const <YtSong>[]);
     return _swr(
-      searchKey(query),
-      () => _fetchSearchSongs(query),
+      curated ? searchKey(query) : '${searchKey(query)}|raw',
+      () => _fetchSearchSongs(query, curated: curated),
       encode: YtSong.encodeList,
       decode: ytSongListFrom,
     );
   }
 
   /// Network half of [searchSongs].
-  Future<List<YtSong>> _fetchSearchSongs(String query) async {
+  Future<List<YtSong>> _fetchSearchSongs(
+    String query, {
+    bool curated = true,
+  }) async {
     try {
       debugPrint('[YtMusicService] searchSongs: "$query"');
       final body = await _post('search', {
@@ -1641,7 +1649,9 @@ class YtMusicService {
           if (responsive is Map) {
             final song = _parseSongFromResponsive(
                 Map<String, dynamic>.from(responsive));
-            if (song != null && song.isValid && _songPassesFilter(song)) {
+            if (song != null &&
+                song.isValid &&
+                (!curated || _songPassesFilter(song))) {
               songs.add(song);
             }
           }
@@ -2127,98 +2137,38 @@ class YtMusicService {
   }
 
   /// Network half of [getUpNext].
+  ///
+  /// YouTube Music exposes the "fans of this song also listened to" radio as an
+  /// automix playlist (`RDAMVM<videoId>`). A plain `next` call returns a queue
+  /// holding only the seed song, so we request the automix explicitly and, if
+  /// that comes back empty, fall back to discovering its id from the plain
+  /// response before retrying.
   Future<List<YtSong>> _fetchUpNext(String videoId) async {
-
     try {
       debugPrint('[YtMusicService] getUpNext: videoId=$videoId');
-      final body = await _post('next', {
+
+      // ① The per-video automix radio.
+      var body = await _post('next', {
         'videoId': videoId,
+        'playlistId': 'RDAMVM$videoId',
         'isAudioOnly': true,
       });
-      if (body == null) return [];
+      var songs = _songsFromWatchNextQueue(body, videoId);
 
-      final tabs = _nav<List>(body, [
-        'contents',
-        'singleColumnMusicWatchNextResultsRenderer',
-        'tabbedRenderer',
-        'watchNextTabbedResultsRenderer',
-        'tabs',
-      ]);
-      if (tabs == null) return [];
-
-      List<dynamic>? queueContents;
-      for (final tab in tabs) {
-        if (tab is! Map) continue;
-        final tabRenderer = tab['tabRenderer'];
-        if (tabRenderer is! Map) continue;
-        final tabTitle = _nav<String>(tabRenderer, ['title']) ?? '';
-        if (tabTitle.toLowerCase().contains('up next') ||
-            tabTitle.toLowerCase().contains('queue')) {
-          queueContents = _nav<List>(tabRenderer, [
-            'content',
-            'musicQueueRenderer',
-            'content',
-            'playlistPanelRenderer',
-            'contents',
-          ]);
-          break;
-        }
-      }
-
-      if (queueContents == null && tabs.isNotEmpty) {
-        final firstTab = tabs[0];
-        if (firstTab is Map) {
-          final tabRenderer = firstTab['tabRenderer'];
-          if (tabRenderer is Map) {
-            queueContents = _nav<List>(tabRenderer, [
-              'content',
-              'musicQueueRenderer',
-              'content',
-              'playlistPanelRenderer',
-              'contents',
-            ]);
-          }
-        }
-      }
-
-      if (queueContents == null) return [];
-
-      final songs = <YtSong>[];
-      for (final item in queueContents) {
-        if (item is! Map) continue;
-        final panelVideo = item['playlistPanelVideoRenderer'];
-        if (panelVideo is! Map) continue;
-
-        final vid = _nav<String>(panelVideo, ['videoId']);
-        if (vid == null || vid.isEmpty || vid == videoId) continue;
-
-        final titleObj = panelVideo['title'];
-        final title = _runs(titleObj);
-        if (title.isEmpty) continue;
-
-        final shortByline = panelVideo['shortBylineText'];
-        final artist = _artistFromText(shortByline);
-
-        final thumbWrapper = panelVideo['thumbnail'];
-        final rawCoverUrl = _thumbFromWrapper(thumbWrapper);
-        final coverUrl = ThumbnailUrl.normalize(rawCoverUrl, videoId: vid);
-
-        final durationText =
-            _nav<String>(panelVideo, ['lengthText', 'runs', 0, 'text']) ??
-                _runs(panelVideo['lengthText']);
-        final duration = _parseDuration(durationText);
-
-        final song = YtSong(
-          videoId: vid,
-          title: title,
-          artist: artist,
-          coverUrl: coverUrl,
-          duration: duration,
-          artistRefs: _artistRefsFromText(shortByline),
-        );
-
-        if (song.isValid && _songPassesFilter(song)) {
-          songs.add(song);
+      // ② Fallback: read the automix id off the plain response and retry.
+      if (songs.isEmpty) {
+        final plain = await _post('next', {
+          'videoId': videoId,
+          'isAudioOnly': true,
+        });
+        final mixId = _automixPlaylistId(plain);
+        if (mixId != null && mixId != 'RDAMVM$videoId') {
+          body = await _post('next', {
+            'videoId': videoId,
+            'playlistId': mixId,
+            'isAudioOnly': true,
+          });
+          songs = _songsFromWatchNextQueue(body, videoId);
         }
       }
 
@@ -2229,6 +2179,145 @@ class YtMusicService {
       return [];
     }
   }
+
+  /// Parses the "Up next"/queue tab of a `next` response into [YtSong]s,
+  /// skipping the seed [videoId] and dropping duplicate video ids.
+  List<YtSong> _songsFromWatchNextQueue(
+    Map<String, dynamic>? body,
+    String videoId,
+  ) {
+    if (body == null) return const <YtSong>[];
+
+    final tabs = _nav<List>(body, [
+      'contents',
+      'singleColumnMusicWatchNextResultsRenderer',
+      'tabbedRenderer',
+      'watchNextTabbedResultsRenderer',
+      'tabs',
+    ]);
+    if (tabs == null) return const <YtSong>[];
+
+    List<dynamic>? queueContents;
+    for (final tab in tabs) {
+      if (tab is! Map) continue;
+      final tabRenderer = tab['tabRenderer'];
+      if (tabRenderer is! Map) continue;
+      final tabTitle = _nav<String>(tabRenderer, ['title']) ?? '';
+      if (tabTitle.toLowerCase().contains('up next') ||
+          tabTitle.toLowerCase().contains('queue')) {
+        queueContents = _nav<List>(tabRenderer, [
+          'content',
+          'musicQueueRenderer',
+          'content',
+          'playlistPanelRenderer',
+          'contents',
+        ]);
+        break;
+      }
+    }
+
+    if (queueContents == null && tabs.isNotEmpty) {
+      final firstTab = tabs[0];
+      if (firstTab is Map) {
+        final tabRenderer = firstTab['tabRenderer'];
+        if (tabRenderer is Map) {
+          queueContents = _nav<List>(tabRenderer, [
+            'content',
+            'musicQueueRenderer',
+            'content',
+            'playlistPanelRenderer',
+            'contents',
+          ]);
+        }
+      }
+    }
+
+    if (queueContents == null) return const <YtSong>[];
+
+    final songs = <YtSong>[];
+    final seen = <String>{videoId};
+    for (final item in queueContents) {
+      if (item is! Map) continue;
+      final panelVideo = item['playlistPanelVideoRenderer'];
+      if (panelVideo is! Map) continue;
+
+      final vid = _nav<String>(panelVideo, ['videoId']);
+      if (vid == null || vid.isEmpty || !seen.add(vid)) continue;
+
+      final titleObj = panelVideo['title'];
+      final title = _runs(titleObj);
+      if (title.isEmpty) continue;
+
+      final shortByline = panelVideo['shortBylineText'];
+      final artist = _artistFromText(shortByline);
+
+      final thumbWrapper = panelVideo['thumbnail'];
+      final rawCoverUrl = _thumbFromWrapper(thumbWrapper);
+      final coverUrl = ThumbnailUrl.normalize(rawCoverUrl, videoId: vid);
+
+      final durationText =
+          _nav<String>(panelVideo, ['lengthText', 'runs', 0, 'text']) ??
+              _runs(panelVideo['lengthText']);
+      final duration = _parseDuration(durationText);
+
+      final song = YtSong(
+        videoId: vid,
+        title: title,
+        artist: artist,
+        coverUrl: coverUrl,
+        duration: duration,
+        artistRefs: _artistRefsFromText(shortByline),
+      );
+
+      if (song.isValid && _songPassesFilter(song)) {
+        songs.add(song);
+      }
+    }
+    return songs;
+  }
+
+  /// Walks a `next` response for the automix ("Start mix") playlist id, which
+  /// YouTube Music uses for the per-video radio.
+  String? _automixPlaylistId(Map<String, dynamic>? body) {
+    if (body == null) return null;
+    String? found;
+    void walk(dynamic node) {
+      if (found != null) return;
+      if (node is Map) {
+        final playback =
+            _nav<String>(node, ['watchPlaybackEndpoint', 'playlistId']);
+        if (playback != null && playback.startsWith('RDAMVM')) {
+          found = playback;
+          return;
+        }
+        final watch = _nav<String>(node, ['watchEndpoint', 'playlistId']);
+        if (watch != null && watch.startsWith('RDAMVM')) {
+          found = watch;
+          return;
+        }
+        for (final value in node.values) {
+          walk(value);
+        }
+      } else if (node is List) {
+        for (final item in node) {
+          walk(item);
+        }
+      }
+    }
+
+    walk(body);
+    return found;
+  }
+
+  /// Test hook for [getUpNext]'s queue parsing.
+  @visibleForTesting
+  List<YtSong> parseWatchNextQueue(Map<String, dynamic> body, String videoId) =>
+      _songsFromWatchNextQueue(body, videoId);
+
+  /// Test hook for [getUpNext]'s automix-id discovery.
+  @visibleForTesting
+  String? automixPlaylistId(Map<String, dynamic> body) =>
+      _automixPlaylistId(body);
 
   /// Returns a personalised "Albums for you" list by merging three sources:
   /// 1. [homeAlbums] — album shelves already parsed from the home feed (free).

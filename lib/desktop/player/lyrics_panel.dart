@@ -215,7 +215,7 @@ class _LyricsPanelState extends ConsumerState<LyricsPanel> {
                     Divider(
                         height: 1,
                         thickness: 1,
-                        color: context.appTheme.isVerdantNightDesktop
+                        color: context.appTheme.usesModernDesign
                             ? context.appTheme.dividerColor
                             : context.appTheme.main),
 
@@ -277,7 +277,7 @@ class _LyricsPanelState extends ConsumerState<LyricsPanel> {
             mainAxisSize: MainAxisSize.min,
             children: [
               CircularProgressIndicator(
-                  color: context.appTheme.isVerdantNightDesktop
+                  color: context.appTheme.usesModernDesign
                       ? context.appTheme.subtext
                       : context.appTheme.button,
                   strokeWidth: 2),
@@ -512,7 +512,7 @@ class _LyricLineState extends State<_LyricLine> {
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       height: 1.3,
-                      color: context.appTheme.isVerdantNightDesktop
+                      color: context.appTheme.usesModernDesign
                           ? (lit
                               ? context.appTheme.lyricsActiveLineColor
                               : context.appTheme.lyricsInactiveLineColor)
@@ -546,7 +546,7 @@ class _LyricLineState extends State<_LyricLine> {
               // panel, so the plain (non-karaoke) lines rendered lime when
               // active and vanished once sung — while the karaoke branch of
               // this very widget used the lyrics* tokens. Match it.
-              color: context.appTheme.isVerdantNightDesktop
+              color: context.appTheme.usesModernDesign
                   ? (_hovered && isSynced || widget.isActive
                       ? context.appTheme.lyricsActiveLineColor
                       : context.appTheme.lyricsInactiveLineColor)

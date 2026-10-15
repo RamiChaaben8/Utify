@@ -358,7 +358,7 @@ class _UpdateDialogBody extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'The app will restart automatically when the download is complete.',
+                'The app will close and restart automatically to finish the update.',
                 style: TextStyle(color: theme.subtext, fontSize: 12),
               ),
             ],
@@ -368,8 +368,14 @@ class _UpdateDialogBody extends StatelessWidget {
       case UpdateStatus.installing:
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Text('Android installer opened. Confirm Install there to finish updating Utify.',
-              style: TextStyle(color: theme.subtext)),
+          child: Text(
+            Platform.isWindows
+                ? 'Setup is running. Utify will close and reopen automatically '
+                    'once the update has finished.'
+                : 'Android installer opened. Confirm Install there to finish '
+                    'updating Utify.',
+            style: TextStyle(color: theme.subtext),
+          ),
         );
 
       case UpdateStatus.error:

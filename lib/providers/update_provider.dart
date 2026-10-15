@@ -20,7 +20,7 @@ enum UpdateStatus {
   available,    // update found, waiting for user action
   upToDate,     // checked — already on latest
   downloading,  // fetching the asset
-  installing,   // Android package installer opened
+  installing,   // installer handed off (Android package installer / Windows Setup)
   error,        // something went wrong
 }
 
@@ -114,6 +114,13 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
           // Guard: only update while still downloading.
           if (state.status == UpdateStatus.downloading) {
             state = state.copyWith(downloadProgress: p);
+          }
+        },
+        onInstalling: () {
+          // Windows: Setup is running and Utify is about to close, so the
+          // future above never completes — flip the UI state here instead.
+          if (state.status == UpdateStatus.downloading) {
+            state = state.copyWith(status: UpdateStatus.installing);
           }
         },
       );

@@ -141,15 +141,15 @@ class TuneifyApp extends StatelessWidget {
         border: const OutlineInputBorder(borderSide: BorderSide.none),
       ),
       iconTheme: IconThemeData(
-          color: t.isVerdantNightDesktop ? t.iconDefault : t.text),
-      iconButtonTheme: t.isVerdantNightDesktop
+          color: t.usesModernDesign ? t.iconDefault : t.text),
+      iconButtonTheme: t.usesModernDesign
           ? IconButtonThemeData(style: t.iconButtonStyle)
           : const IconButtonThemeData(),
-      tabBarTheme: t.isVerdantNightDesktop
+      tabBarTheme: t.usesModernDesign
           ? TabBarThemeData(
-              labelColor: t.text,
+              labelColor: t.nowPlayingAccent,
               unselectedLabelColor: t.subtext,
-              indicatorColor: t.text,
+              indicatorColor: t.nowPlayingAccent,
             )
           : const TabBarThemeData(),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: t.button),
@@ -163,7 +163,7 @@ class TuneifyApp extends StatelessWidget {
       ),
       scrollbarTheme: ScrollbarThemeData(
         thumbColor: WidgetStatePropertyAll(
-            t.isVerdantNightDesktop ? t.scrollbarThumbColor : t.button),
+            t.usesModernDesign ? t.scrollbarThumbColor : t.button),
         thickness: const WidgetStatePropertyAll(4),
         radius: const Radius.circular(2),
       ),

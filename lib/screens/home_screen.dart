@@ -91,7 +91,7 @@ class HomeScreen extends ConsumerWidget {
                     children: [
                       const ProfileAvatar(),
                       const Spacer(),
-                      if (!isGuest) const PartyInviteButton(),
+                      if (!isGuest) const NotificationsButton(),
                     ],
                   ),
                 ),

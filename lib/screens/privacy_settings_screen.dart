@@ -82,7 +82,7 @@ class _PrivacySettingsScreenState
       body: _loading
           ? Center(
               child: CircularProgressIndicator(
-                color: theme.isVerdantNightDesktop
+                color: theme.usesModernDesign
                     ? theme.subtext
                     : theme.button,
               ),

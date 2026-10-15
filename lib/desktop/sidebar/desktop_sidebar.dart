@@ -101,7 +101,7 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
               layout.sidebarWidthFor(MediaQuery.sizeOf(context).width)),
       decoration: BoxDecoration(
         color: context.appTheme.sidebar,
-        borderRadius: context.appTheme.isVerdantNightDesktop
+        borderRadius: context.appTheme.usesModernDesign
             ? BorderRadius.circular(layout.panelRadius)
             : BorderRadius.only(
                 topRight: Radius.circular(layout.panelRadius),
@@ -260,24 +260,23 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
                 ),
               ),
               SizedBox(width: 8),
-              // Flexible so a narrow sidebar ellipsises the title instead of
-              // overflowing — the header also holds three action buttons.
-              Flexible(
+              // Expanded (not Flexible) so the title claims all the space left
+              // by the three action buttons — a Flexible here shared the row
+              // with the old Spacer and ellipsised "Your Library" even when
+              // there was room for it.
+              Expanded(
                 child: Text(
                   'Your Library',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                   style: TextStyle(
-                    color: context.appTheme.isVerdantNightDesktop
-                        ? context.appTheme.text
-                        : context.appTheme.button,
+                    color: context.appTheme.nowPlayingAccent,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
               const SizedBox(width: 4),
-              const Spacer(),
               Tooltip(
                 message: 'Create playlist',
                 child: IconButton(
@@ -384,8 +383,6 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
               if (widget.onDownloadsSelected != null)
                 ListTile(
                   dense: true,
-                  leading: const Icon(Icons.settings_outlined,
-                      color: Colors.white38, size: 18),
                   title: const Text(
                     'Manage downloads',
                     style: TextStyle(color: Colors.white54, fontSize: 12),
@@ -470,7 +467,7 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
                           horizontal: 12, vertical: 2),
                       decoration: BoxDecoration(
                         color: active
-                            ? (context.appTheme.isVerdantNightDesktop
+                            ? (context.appTheme.usesModernDesign
                                 ? context.appTheme.selectedRow
                                     .withValues(alpha: 0.6)
                                 : context.appTheme.button
@@ -594,12 +591,8 @@ class _DesktopSidebarState extends ConsumerState<DesktopSidebar> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: context.appTheme.isVerdantNightDesktop
-                    ? context.appTheme.text
-                    : context.appTheme.button,
-                foregroundColor: context.appTheme.isVerdantNightDesktop
-                    ? context.appTheme.main
-                    : context.appTheme.text),
+                backgroundColor: context.appTheme.nowPlayingAccent,
+                foregroundColor: context.appTheme.onButtonFill),
             onPressed: () {
               final name = controller.text.trim();
               if (name.isNotEmpty) {
@@ -859,9 +852,7 @@ class _FolderSection extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: theme.isVerdantNightDesktop
-                                    ? theme.text
-                                    : theme.button,
+                                color: theme.nowPlayingAccent,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1325,12 +1316,8 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: context.appTheme.isVerdantNightDesktop
-                    ? context.appTheme.text
-                    : context.appTheme.button,
-                foregroundColor: context.appTheme.isVerdantNightDesktop
-                    ? context.appTheme.main
-                    : context.appTheme.text),
+                backgroundColor: context.appTheme.nowPlayingAccent,
+                foregroundColor: context.appTheme.onButtonFill),
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
             // The child's TextStyle would beat foregroundColor — that painted a
             // lime 'Save' on the lime fill in Verdant Night.
@@ -1412,9 +1399,7 @@ class _PlaylistTileState extends ConsumerState<_PlaylistTile> {
             onPressed: () => Navigator.pop(ctx, '__new__'),
             child: Text('New folder…',
                 style: TextStyle(
-                    color: context.appTheme.isVerdantNightDesktop
-                        ? context.appTheme.text
-                        : context.appTheme.button)),
+                    color: context.appTheme.nowPlayingAccent)),
           ),
         ],
       ),
@@ -1651,9 +1636,8 @@ class _LikedSongsTileState extends State<_LikedSongsTile> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: widget.isActive &&
-                                !context.appTheme.isVerdantNightDesktop
-                            ? context.appTheme.button
+                        color: widget.isActive
+                            ? context.appTheme.nowPlayingAccent
                             : context.appTheme.text,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,

@@ -26,6 +26,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -37,9 +38,22 @@ import '../services/audio_player_service.dart';
 import '../services/youtube_service.dart';
 import '../services/sync_service.dart';
 import '../services/firestore_service.dart';
+import '../services/ytmusic_service.dart';
 import '../platform/permissions.dart';
 import 'library_provider.dart';
 import 'sync_provider.dart';
+import 'playback_settings_provider.dart';
+
+// ─── Autoplay radio limits ───────────────────────────────────────────────────
+//
+// Keep the queue bounded so the Firestore sync (which truncates the queue at
+// 200 items) never drops the current track or its neighbours.
+
+/// Hard cap on the autoplay queue length.
+const int _kAutoplayQueueCap = 150;
+
+/// Played tracks to keep in front of the current one when trimming.
+const int _kAutoplayHistoryKeep = 25;
 
 // ─── State class ─────────────────────────────────────────────────────────────
 
@@ -140,6 +154,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// True while a remote-triggered load is in progress.
   bool _applyingRemote = false;
 
+  /// Video ids with a radio fetch currently in flight, so a song that is
+  /// briefly the last track twice does not fire two requests at once.
+  final Set<String> _radioInFlight = {};
+
   PlayerNotifier(this._handler, this._library, this._sync)
       : super(const PlayerState()) {
     _subscribeToPlayerStreams();
@@ -222,6 +240,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         _library.addToRecentlyPlayed(song).catchError((_) {});
         _sendCommand(RemoteCommand.playSong);
       }
+
+      // If this is the last track in the queue, top it up with the song's
+      // radio so playback continues instead of wrapping back to the start.
+      _maybeAutoplayRadio();
     }));
   }
 
@@ -813,6 +835,66 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _service.setQueue(queue, currentIndex: index);
     }
     _sendCommand(RemoteCommand.queueUpdate);
+  }
+
+  /// Autoplay radio.
+  ///
+  /// When the current track is the last in the queue and the user has autoplay
+  /// enabled, fetch the song's YouTube Music radio and append it, so playback
+  /// continues into "fans of this song also listened to" instead of wrapping
+  /// back to the start. Runs on the active device only; the appended queue is
+  /// broadcast to the other devices through [_updateQueue].
+  Future<void> _maybeAutoplayRadio() async {
+    if (!_sync.service.isActive) return;
+    if (!readAutoplaySetting()) return;
+    if (_service.loopMode != LoopMode.off) return;
+
+    final song = state.currentSong;
+    if (song == null || song.id.isEmpty) return;
+
+    // Only when nothing follows the current track.
+    if (state.queue.isEmpty || state.currentIndex != state.queue.length - 1) {
+      return;
+    }
+    if (!_radioInFlight.add(song.id)) return;
+
+    try {
+      final radio = await YtMusicService.instance.getUpNext(song.id);
+      // The user may have skipped while we were fetching.
+      if (state.currentSong?.id != song.id) return;
+      if (radio.isEmpty) return;
+
+      final queue = List<Song>.from(state.queue);
+      final seen = queue.map((s) => s.id).toSet();
+      for (final yt in radio) {
+        final s = yt.toSong();
+        if (s.id.isNotEmpty && seen.add(s.id)) queue.add(s);
+      }
+      if (queue.length == state.queue.length) return;
+      final added = queue.length - state.queue.length;
+
+      // Keep the queue bounded. Firestore truncates the synced queue at 200
+      // items but still writes the real index, so an ever-growing autoplay
+      // queue would desync passive devices. Trim played tracks off the front,
+      // keeping a little history.
+      var index = state.currentIndex;
+      if (queue.length > _kAutoplayQueueCap) {
+        final excess = queue.length - _kAutoplayQueueCap;
+        final droppable = index - _kAutoplayHistoryKeep;
+        final drop = excess < droppable ? excess : droppable;
+        if (drop > 0) {
+          queue.removeRange(0, drop);
+          index -= drop;
+        }
+      }
+
+      debugPrint('[Player] autoplay radio +$added songs after "${song.title}"');
+      _updateQueue(queue, currentIndex: index);
+    } catch (e) {
+      debugPrint('[Player] autoplay radio failed: $e');
+    } finally {
+      _radioInFlight.remove(song.id);
+    }
   }
 
   void toggleShuffle() {

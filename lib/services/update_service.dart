@@ -9,9 +9,11 @@
 //   Returns an UpdateResult with all info needed by the UI.
 //
 // downloadAndInstallUpdate()
-//   WINDOWS  — fully implemented: downloads the zip to a temp
-//              directory, extracts it, and launches the bundled
-//              updater script, then exits the app.
+//   WINDOWS  — fully implemented: downloads the installer .exe to a
+//              temp directory, starts it, waits until Setup has really
+//              initialised (its unpack dir / log appears) and only then
+//              exits, so Setup can safely replace the app files.  Setup
+//              relaunches Utify when it is done.
 //   macOS    — STUB: throws UnimplementedError. See TODO below.
 //   Linux    — STUB: throws UnimplementedError. See TODO below.
 // ============================================================
@@ -164,15 +166,23 @@ class UpdateService {
   /// Downloads the release asset and installs it.
   ///
   /// [onProgress] is called with values 0.0–1.0 as the download progresses.
+  /// [onInstalling] is called once the installer has been handed off — the
+  /// UI uses it to switch to the "installing" state, because on Windows the
+  /// app closes itself while that is happening and this future never returns.
   ///
   /// WINDOWS: fully implemented.
   /// macOS / Linux: stubs — throw [UnimplementedError] with helpful messages.
   Future<void> downloadAndInstallUpdate(
     UpdateResult result, {
     ValueChanged<double>? onProgress,
+    VoidCallback? onInstalling,
   }) async {
     if (Platform.isWindows) {
-      return _installWindows(result, onProgress: onProgress);
+      return _installWindows(
+        result,
+        onProgress: onProgress,
+        onInstalling: onInstalling,
+      );
     } else if (Platform.isAndroid) {
       return _installAndroid(result, onProgress: onProgress);
     } else if (Platform.isMacOS) {
@@ -231,6 +241,7 @@ class UpdateService {
   Future<void> _installWindows(
     UpdateResult result, {
     ValueChanged<double>? onProgress,
+    VoidCallback? onInstalling,
   }) async {
     if (result.downloadUrl.isEmpty) {
       throw UpdateException(
@@ -295,17 +306,35 @@ class UpdateService {
 
     onProgress?.call(1.0);
 
-    // 3. Start Setup before exiting. Inno Setup handles closing the app
-    // and relaunches Utify through the installer's [Run] entry.
-    final logPath = '${tempDir.path}\\utify-setup.log';
+    // 3. Start Setup, wait until it has actually initialised, then exit.
+    //
+    // Why the extra care: launching Setup and calling exit(0) immediately is
+    // racy.  If the app disappears before Setup has unpacked itself the update
+    // silently does nothing — no installer window, no log, the app just closes
+    // and stays closed.  So instead we:
+    //   a) snapshot %TEMP% so we can spot what Setup creates,
+    //   b) start Setup detached,
+    //   c) poll until Setup's unpack folder / log shows up (proof it is alive),
+    //   d) only then exit(0), which releases our file locks so Setup can
+    //      replace utify.exe.  Setup force-closes Utify anyway (utify.iss).
+    // If Setup never shows up we throw, so the UI can tell the user instead of
+    // the app vanishing for no reason.
+    final tempPath = tempDir.path;
+    final before = _snapshotSetupArtifacts(tempPath);
+
+    // Deliberately no /DIR and no /LOG: both need quoting to survive paths
+    // containing spaces, and Dart quotes command-line arguments itself, which
+    // Inno Setup then mis-parses.  The installer remembers its previous
+    // directory (UsePreviousAppDir) and always writes a log thanks to
+    // SetupLogging=yes in utify.iss.
     try {
       await Process.start(
         installerPath,
-        [
+        const [
           '/SILENT',
+          '/SUPPRESSMSGBOXES',
           '/CLOSEAPPLICATIONS',
           '/NORESTART',
-          '/LOG="$logPath"',
         ],
         mode: ProcessStartMode.detached,
         runInShell: false,
@@ -316,7 +345,57 @@ class UpdateService {
       throw UpdateException(
           'The update was downloaded, but the installer could not be started: $error');
     }
+
+    onInstalling?.call();
+
+    final deadline = DateTime.now().add(const Duration(seconds: 60));
+    var setupStarted = false;
+    while (DateTime.now().isBefore(deadline)) {
+      // Additions only: Setup starting means new artefacts appear.  A stale
+      // artefact being cleaned up must not count as "Setup started".
+      final now = _snapshotSetupArtifacts(tempPath);
+      if (now.difference(before).isNotEmpty) {
+        setupStarted = true;
+        break;
+      }
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+
+    if (!setupStarted) {
+      throw UpdateException(
+          'The downloaded installer did not start. '
+          'Please install it manually from ${result.releasePage}.');
+    }
+
+    // Let Setup get past its startup / "close running applications" stage so
+    // Utify is gone before Setup starts copying files.
+    await Future.delayed(const Duration(milliseconds: 700));
     exit(0);
+  }
+
+  /// Snapshot of the Inno Setup artefacts that appear in [tempPath] while a
+  /// Setup run is in progress: its `Setup Log *.txt` files (guaranteed by
+  /// SetupLogging=yes), its `is-*.tmp` unpack entries and the SetupLdr's
+  /// `_iu*.tmp` file.  Comparing two snapshots tells us whether Setup has
+  /// really started.
+  Set<String> _snapshotSetupArtifacts(String tempPath) {
+    final names = <String>{};
+    try {
+      for (final entity
+          in Directory(tempPath).listSync(followLinks: false)) {
+        final name =
+            entity.path.split(Platform.pathSeparator).last.toLowerCase();
+        final isSetupLog = name.startsWith('setup log') && name.endsWith('.txt');
+        final isIsTmp = name.startsWith('is-') && name.endsWith('.tmp');
+        final isIuTmp = name.startsWith('_iu') && name.endsWith('.tmp');
+        if (isSetupLog || isIsTmp || isIuTmp) {
+          names.add(name);
+        }
+      }
+    } catch (error) {
+      debugPrint('[Update] Could not scan the temp directory: $error');
+    }
+    return names;
   }
 
   // ── macOS stub ───────────────────────────────────────────────────────────

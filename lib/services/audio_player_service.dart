@@ -338,21 +338,30 @@ class AudioPlayerService {
           : [_currentIndex]);
   }
 
+  /// just_audio loop mode that matches the app's own [LoopMode].
+  ///
+  /// The player only ever holds the *current* track — the app drives the queue
+  /// itself and [skipToNext] wraps around at the end. So `LoopMode.all` must
+  /// NOT be handed to the player: on a single-item source it loops that one
+  /// track, which made "repeat all" behave exactly like "repeat one". Only
+  /// `one` maps across; everything else stays `off` so the completion listener
+  /// can advance (and wrap) the queue.
+  LoopMode get _playerLoopMode =>
+      _loopMode == LoopMode.one ? LoopMode.one : LoopMode.off;
+
   void toggleLoopMode() {
     switch (_loopMode) {
       case LoopMode.off:
         _loopMode = LoopMode.all;
-        _player.setLoopMode(LoopMode.all);
         break;
       case LoopMode.all:
         _loopMode = LoopMode.one;
-        _player.setLoopMode(LoopMode.one);
         break;
       case LoopMode.one:
         _loopMode = LoopMode.off;
-        _player.setLoopMode(LoopMode.off);
         break;
     }
+    _player.setLoopMode(_playerLoopMode);
   }
 
   // ── Core load ────────────────────────────────────────────────────────────
@@ -525,6 +534,9 @@ class AudioPlayerService {
         },
       );
       if (_loadSerial == mySerial) {
+        // setAudioSource can reset the player's loop mode, so re-apply it after
+        // every fresh source — "repeat one" has to survive a manual skip.
+        await _player.setLoopMode(_playerLoopMode);
         // just_audio's play future stays pending until playback pauses or ends.
         // Do not block track-change notifications and next-track prefetch on it.
         unawaited(_player.play().catchError((Object error) {

@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/guest_session_provider.dart';
 import '../screens/cache_settings_screen.dart';
+import '../screens/playback_settings_screen.dart';
 import '../screens/privacy_settings_screen.dart';
 import '../services/firestore_service.dart';
 import '../services/artwork_cache_manager.dart';
@@ -199,6 +200,21 @@ class _AccountMenuPanelState extends ConsumerState<_AccountMenuPanel> {
                         title: Text('Edit Profile',
                             style: TextStyle(color: theme.text)),
                         onTap: () => _openEditProfile(context),
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.play_circle_outline,
+                            color: theme.iconDefault),
+                        title: Text('Playback',
+                            style: TextStyle(color: theme.text)),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PlaybackSettingsScreen(),
+                            ),
+                          );
+                        },
                       ),
                       ListTile(
                         leading:

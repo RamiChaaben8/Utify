@@ -9,27 +9,28 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import '../../models/song.dart';
+import '../../models/ytmusic_models.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/guest_session_provider.dart';
 import '../../providers/search_history_provider.dart';
 import '../../providers/youtube_provider.dart';
+import '../../providers/ytmusic_home_provider.dart';
 import '../../widgets/artist_link.dart';
 import '../theme/desktop_theme.dart';
 import '../../widgets/listen_party_controls.dart';
 
-// ── Centre-view indices, mirroring the shell's own constants. Only the two
-// ── the title bar needs an active state for are declared; search and playlists
-// ── are shown by the centre column itself. ───────────────────────────────────
+// ── Centre-view index, mirroring the shell's own constant. Search and
+// ── playlists are shown by the centre column itself, so home is the only one
+// ── the title bar needs an active state for. ─────────────────────────────────
 const int _kViewHome = 0;
-const int _kViewSettings = 3;
 
 /// Active-state colour for a title-bar icon: the accent when its destination is
 /// showing, the resting colour otherwise. Works in every theme because the
 /// accent is lime in Verdant Night and green elsewhere.
 Color _iconActiveColor(AppThemeData theme, bool active) {
   if (!active) {
-    return theme.isVerdantNightDesktop ? theme.iconDefault : theme.textSecondary;
+    return theme.usesModernDesign ? theme.iconDefault : theme.textSecondary;
   }
   return theme.accent;
 }
@@ -98,6 +99,7 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
 
   // ── Maximum suggestions shown in the popup ─────────────────────────────────
   static const int _kMaxSuggestions = 8;
+  static const int _kMaxArtists = 4;
 
   @override
   void initState() {
@@ -267,9 +269,9 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
             ),
           ),
 
-          // ── Right: party invite + friends + settings + avatar ─────────
+          // ── Right: notifications + friends + avatar ───────────────────
           if (!guestMode) ...[
-            const PartyInviteButton(),
+            const NotificationsButton(),
             SizedBox(width: 4),
             // Toggles the friend activity panel in the right-hand column, so
             // its "active" state is the panel being open, not a centre view.
@@ -279,17 +281,8 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
               onPressed: widget.onFriendsTap,
               tooltip: widget.friendsPanelOpen ? 'Close friends' : 'Friends',
             ),
-            SizedBox(width: 4),
-            // Available in guest mode too — Appearance has nothing that needs an
-            // account, and burying the only theme picker behind a sign-in gate
-            // was worse than a dead greyed-out gear.
-            _iconBtn(
-              Icons.settings_outlined,
-              color: _iconActiveColor(
-                  theme, widget.currentView == _kViewSettings),
-              onPressed: widget.onSettingsTap,
-              tooltip: 'Settings',
-            ),
+            // No settings gear here any more — Settings lives in the account
+            // menu (tap the avatar).
             SizedBox(width: 8),
           ],
           Tooltip(
@@ -363,19 +356,17 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
             child: Container(
               height: theme.layout.searchHeight,
               decoration: BoxDecoration(
-                color: theme.isVerdantNightDesktop
+                color: theme.usesModernDesign
                     ? theme.highlightElevated
                     : theme.cardColor,
                 borderRadius: BorderRadius.circular(
-                  theme.isVerdantNightDesktop
+                  theme.usesModernDesign
                       ? theme.layout.searchRadius
                       : (_searchExpanded ? 8 : 999),
                 ),
                 border: _searchExpanded
                     ? Border.all(
-                        color: theme.isVerdantNightDesktop
-                            ? theme.text
-                            : theme.accent,
+                        color: theme.nowPlayingAccent,
                         width: 1.5,
                       )
                     : null,
@@ -433,6 +424,15 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
     setState(() {});
   }
 
+  Widget _dropdownLabel(DesktopStyle theme, String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+        child: Text(
+          text,
+          style: TextStyle(
+              color: theme.nowPlayingAccent, fontWeight: FontWeight.w700),
+        ),
+      );
+
   // ── Dropdown panel ─────────────────────────────────────────────────────────
   Widget _buildSearchDropdown(DesktopStyle theme) {
     final history = ref.watch(searchHistoryProvider);
@@ -440,7 +440,18 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
 
     // Cap suggestions to _kMaxSuggestions
     final suggestions = searchState.results.take(_kMaxSuggestions).toList();
-    final hasResults = searchState.query.isNotEmpty && suggestions.isNotEmpty;
+
+    // Artists come from the same mixed YouTube Music lookup the search view
+    // uses, so the dropdown can offer them above the songs Spotify-style.
+    final committed = searchState.query.trim();
+    final extras = committed.isEmpty
+        ? null
+        : ref.watch(ytSearchAllProvider(committed)).valueOrNull;
+    final artists =
+        extras?.artists.take(_kMaxArtists).toList() ?? const <YtArtist>[];
+
+    final hasResults = searchState.query.isNotEmpty &&
+        (suggestions.isNotEmpty || artists.isNotEmpty);
 
     Widget content;
 
@@ -455,7 +466,7 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
               strokeWidth: 2,
               // Every other spinner in the desktop tree drops to subtext in
               // Verdant Night; this was the last one on the bright accent.
-              color: theme.isVerdantNightDesktop ? theme.subtext : theme.accent,
+              color: theme.usesModernDesign ? theme.subtext : theme.accent,
             ),
           ),
         ),
@@ -466,43 +477,48 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
-            child: Text(
-              'Suggestions',
-              style: TextStyle(
-                  color:
-                      theme.isVerdantNightDesktop ? theme.text : theme.accent,
-                  fontWeight: FontWeight.w700),
-            ),
-          ),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.only(bottom: 8),
-            itemCount: suggestions.length,
-            separatorBuilder: (_, __) => Divider(
-              height: 1,
-              color: theme.isVerdantNightDesktop
-                  ? theme.dividerColor
-                  : theme.textSecondary.withValues(alpha: 0.1),
-            ),
-            itemBuilder: (_, i) {
-              final song = suggestions[i];
-              return _SuggestionTile(
-                song: song,
+          if (artists.isNotEmpty) ...[
+            _dropdownLabel(theme, 'Artists'),
+            for (final artist in artists)
+              _ArtistSuggestionTile(
+                artist: artist,
                 theme: theme,
                 onTap: () {
-                  // Play directly — do NOT navigate to search view
-                  ref.read(playerProvider.notifier).playSong(
-                        song,
-                        queue: suggestions,
-                      );
-                  _playSuggestion(_searchController.text.trim());
+                  _closePopup();
+                  openArtistPage(context, ref, artist.browseId);
                 },
-              );
-            },
-          ),
+              ),
+          ],
+          if (suggestions.isNotEmpty) ...[
+            _dropdownLabel(theme, artists.isEmpty ? 'Suggestions' : 'Songs'),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.only(bottom: 8),
+              itemCount: suggestions.length,
+              separatorBuilder: (_, __) => Divider(
+                height: 1,
+                color: theme.usesModernDesign
+                    ? theme.dividerColor
+                    : theme.textSecondary.withValues(alpha: 0.1),
+              ),
+              itemBuilder: (_, i) {
+                final song = suggestions[i];
+                return _SuggestionTile(
+                  song: song,
+                  theme: theme,
+                  onTap: () {
+                    // Play directly — do NOT navigate to search view
+                    ref.read(playerProvider.notifier).playSong(
+                          song,
+                          queue: suggestions,
+                        );
+                    _playSuggestion(_searchController.text.trim());
+                  },
+                );
+              },
+            ),
+          ],
         ],
       );
     } else if (searchState.query.isNotEmpty && searchState.error != null) {
@@ -542,9 +558,7 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
                 Text(
                   'Recent searches',
                   style: TextStyle(
-                      color: theme.isVerdantNightDesktop
-                          ? theme.text
-                          : theme.accent,
+                      color: theme.nowPlayingAccent,
                       fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
@@ -618,7 +632,7 @@ class _DesktopTitleBarState extends ConsumerState<DesktopTitleBar> {
       icon: Icon(
         icon,
         color: enabled
-            ? (theme.isVerdantNightDesktop
+            ? (theme.usesModernDesign
                 ? theme.iconDefault
                 : theme.textPrimary)
             : theme.textSecondary.withValues(alpha: 0.4),
@@ -755,6 +769,96 @@ class _SuggestionTileState extends State<_SuggestionTile> {
               ),
               SizedBox(width: 8),
               Icon(Icons.play_arrow, color: theme.accent, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Artist suggestion tile ───────────────────────────────────────────────────
+
+/// A round-avatar artist row in the search dropdown. Tapping it opens the
+/// artist's YouTube Music page — the same destination the search view's artist
+/// cards use.
+class _ArtistSuggestionTile extends StatefulWidget {
+  final YtArtist artist;
+  final DesktopStyle theme;
+  final VoidCallback onTap;
+
+  const _ArtistSuggestionTile({
+    required this.artist,
+    required this.theme,
+    required this.onTap,
+  });
+
+  @override
+  State<_ArtistSuggestionTile> createState() => _ArtistSuggestionTileState();
+}
+
+class _ArtistSuggestionTileState extends State<_ArtistSuggestionTile> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final artist = widget.artist;
+    final theme = widget.theme;
+
+    Widget fallback() => Container(
+          width: 36,
+          height: 36,
+          color: theme.cardColor,
+          child: Icon(Icons.person, color: theme.textSecondary, size: 16),
+        );
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        child: Container(
+          color: _hovered
+              ? theme.textSecondary.withValues(alpha: 0.08)
+              : context.appTheme.main.withValues(alpha: 0),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              ClipOval(
+                child: artist.pictureUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: artist.pictureUrl,
+                        width: 36,
+                        height: 36,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => fallback(),
+                        errorWidget: (_, __, ___) => fallback(),
+                      )
+                    : fallback(),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      artist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: theme.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 2),
+                    Text('Artist',
+                        style:
+                            TextStyle(color: theme.textSecondary, fontSize: 11)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.person_outline, color: theme.textSecondary, size: 18),
             ],
           ),
         ),

@@ -107,7 +107,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     onPressed: () => showImportPlaylistDialog(context, ref),
                     tooltip: 'Import playlist',
                   ),
-                  if (!isGuest) const PartyInviteButton(),
+                  if (!isGuest) const NotificationsButton(),
                   IconButton(
                     icon: const Icon(Icons.create_new_folder_outlined,
                         color: Colors.white, size: 25),

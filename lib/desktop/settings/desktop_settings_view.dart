@@ -31,12 +31,13 @@ import '../../providers/presence_provider.dart';
 import '../../providers/sync_provider.dart';
 import '../../providers/download_provider.dart';
 import '../../providers/connectivity_provider.dart';
+import '../../providers/playback_settings_provider.dart';
 import '../theme/desktop_theme.dart';
 
 
 /// Left-rail categories. [profile] and [privacy] need a signed-in user;
 /// [appearance] does not, so it stays reachable in guest mode.
-enum SettingsSection { profile, privacy, appearance, downloads }
+enum SettingsSection { profile, privacy, appearance, playback, downloads }
 
 
 class DesktopSettingsView extends ConsumerStatefulWidget {
@@ -93,9 +94,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                   child: Text(
                     'Settings',
                     style: TextStyle(
-                      color: theme.isVerdantNightDesktop
-                          ? theme.text
-                          : theme.button,
+                      color: theme.nowPlayingAccent,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
@@ -122,6 +121,13 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                   selected: _section == SettingsSection.appearance,
                   onTap: () =>
                       setState(() => _section = SettingsSection.appearance),
+                ),
+                _RailItem(
+                  icon: Icons.play_circle_outline,
+                  label: 'Playback',
+                  selected: _section == SettingsSection.playback,
+                  onTap: () =>
+                      setState(() => _section = SettingsSection.playback),
                 ),
                 _RailItem(
                   icon: Icons.cloud_download_outlined,
@@ -152,6 +158,7 @@ class _DesktopSettingsViewState extends ConsumerState<DesktopSettingsView> {
                     ? const _SignedOutNotice(category: 'Privacy')
                     : _PrivacySection(uid: user.uid),
                 SettingsSection.appearance => const _AppearanceSection(),
+                SettingsSection.playback => const _PlaybackSection(),
                 SettingsSection.downloads => const _DownloadsSection(),
               },
             ),
@@ -194,7 +201,7 @@ class _RailItemState extends State<_RailItem> {
     final color = !widget.enabled
         ? theme.subtext.withValues(alpha: 0.5)
         : active
-            ? theme.text
+            ? theme.nowPlayingAccent
             : _hovered
                 ? theme.iconHover
                 : theme.iconDefault;
@@ -262,7 +269,7 @@ class _SectionHeader extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            color: theme.isVerdantNightDesktop ? theme.text : theme.button,
+            color: theme.nowPlayingAccent,
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
@@ -739,7 +746,7 @@ class _PrivacySectionState extends ConsumerState<_PrivacySection> {
     if (_loading) {
       return Center(
         child: CircularProgressIndicator(
-          color: theme.isVerdantNightDesktop
+          color: theme.usesModernDesign
               ? theme.subtext
               : theme.button,
         ),
@@ -820,7 +827,7 @@ class _InlineSwitch extends StatelessWidget {
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: theme.isVerdantNightDesktop
+                    color: theme.usesModernDesign
                         ? theme.subtext
                         : theme.button,
                   ),
@@ -834,6 +841,41 @@ class _InlineSwitch extends StatelessWidget {
               value: value,
               onChanged: onChanged,
             ),
+    );
+  }
+}
+
+// ─── Playback ────────────────────────────────────────────────────────────────
+
+class _PlaybackSection extends ConsumerWidget {
+  const _PlaybackSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final autoplay = ref.watch(autoplayProvider);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(38, 28, 38, 40),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionHeader(
+            title: 'Playback',
+            description: 'How music keeps playing when a queue ends.',
+          ),
+          const SizedBox(height: 30),
+          _SettingRow(
+            title: 'Autoplay',
+            subtitle: 'Keep playing similar songs — fans of the current song '
+                'also listened to — when your music ends.',
+            control: Switch(
+              value: autoplay,
+              onChanged: (v) =>
+                  ref.read(autoplayProvider.notifier).setAutoplay(v),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

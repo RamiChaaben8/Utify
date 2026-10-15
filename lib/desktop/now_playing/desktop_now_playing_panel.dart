@@ -287,7 +287,7 @@ class _DesktopNowPlayingPanelState
           layout.nowPlayingWidthFor(MediaQuery.of(context).size.width),
       decoration: BoxDecoration(
         color: context.appTheme.panelSurfaceColor,
-        borderRadius: context.appTheme.isVerdantNightDesktop
+        borderRadius: context.appTheme.usesModernDesign
             ? BorderRadius.circular(layout.panelRadius)
             : BorderRadius.only(
                 topLeft: Radius.circular(12),
@@ -424,7 +424,7 @@ class _DesktopNowPlayingPanelState
           mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(
-                color: context.appTheme.isVerdantNightDesktop
+                color: context.appTheme.usesModernDesign
                     ? context.appTheme.subtext
                     : context.appTheme.button,
                 strokeWidth: 2),
@@ -796,12 +796,12 @@ class _ThinScrollbarState extends State<_ThinScrollbar> {
                       thumbH: _thumbH(trackH),
                       thumbW: _kThumbW,
                       barW: _kBarW,
-                      thumbColor: context.appTheme.isVerdantNightDesktop
+                      thumbColor: context.appTheme.usesModernDesign
                           ? context.appTheme.scrollbarThumbColor
                           : (_hovering || _dragging)
                               ? context.appTheme.buttonActive
                               : context.appTheme.button,
-                      trackColor: context.appTheme.isVerdantNightDesktop
+                      trackColor: context.appTheme.usesModernDesign
                           ? Colors.transparent
                           : context.appTheme.main,
                     ),
@@ -1119,8 +1119,8 @@ class _LyricLineState extends State<_LyricLine> {
   @override
   Widget build(BuildContext context) {
     final isSynced = widget.line.start != Duration.zero;
-    final verdantDesktop = context.appTheme.isVerdantNightDesktop;
-    final dimColor = verdantDesktop
+    final modernDesktop = context.appTheme.usesModernDesign;
+    final dimColor = modernDesktop
         ? context.appTheme.lyricsInactiveLineColor
         : context.appTheme.text.withValues(alpha: 0.38);
     final baseColor = widget.isActive
@@ -1159,10 +1159,10 @@ class _LyricLineState extends State<_LyricLine> {
                       fontWeight: fontWeight,
                       height: 1.35,
                       color: lit
-                          ? (verdantDesktop
+                          ? (modernDesktop
                               ? context.appTheme.lyricsActiveLineColor
                               : context.appTheme.button)
-                          : (verdantDesktop
+                          : (modernDesktop
                               ? context.appTheme.lyricsInactiveLineColor
                               : context.appTheme.text.withValues(alpha: 0.55)),
                     ),

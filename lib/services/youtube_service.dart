@@ -26,7 +26,7 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:hive/hive.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
@@ -147,8 +147,8 @@ class YoutubeService {
 
   Future<List<Song>> search(String query, {int maxResults = 20}) async {
     try {
-      final results = await _yt.search.search(query);
-      return results.take(maxResults).map(_videoToSong).toList();
+      final results = await _searchVideos(query);
+      return results.take(maxResults).toList();
     } on VideoUnavailableException catch (e) {
       throw YoutubeServiceException('Video unavailable: ${e.message}');
     } catch (e) {
@@ -160,11 +160,62 @@ class YoutubeService {
   /// Used for home feed sections (trending, new releases, mood, etc.)
   Future<List<Song>> searchSection(String query, {int maxResults = 10}) async {
     try {
-      final results = await _yt.search.search(query);
-      return results.take(maxResults).map(_videoToSong).toList();
+      final results = await _searchVideos(query);
+      return results.take(maxResults).toList();
     } catch (_) {
       return [];
     }
+  }
+
+  /// Video search that maps the raw results itself.
+  ///
+  /// We deliberately avoid `YoutubeExplode.search.search`: it eagerly turns each
+  /// result's "5 years ago" timestamp into a `DateTime` through
+  /// `String.toDateTime()`, which does a bare `int.parse` on the first word. A
+  /// live-stream result whose timestamp is not exactly
+  /// "Streamed <n> <unit> ago" (YouTube also emits shorter forms) makes that
+  /// parse throw a `FormatException`, which aborts the whole search.
+  /// `searchContent` hands back the unparsed [SearchVideo]s, so the timestamp is
+  /// never touched and we build the [Song]s ourselves.
+  Future<List<Song>> _searchVideos(String query) async {
+    final results =
+        await _yt.search.searchContent(query, filter: TypeFilters.video);
+    return results.whereType<SearchVideo>().map(searchVideoToSong).toList();
+  }
+
+  /// Maps a raw search result to a [Song], ignoring its upload-date string.
+  @visibleForTesting
+  static Song searchVideoToSong(SearchVideo video) {
+    final id = video.id.value;
+    return Song(
+      id: id,
+      title: video.title,
+      channelName: video.author,
+      thumbnailUrl: 'https://i.ytimg.com/vi/$id/mqdefault.jpg',
+      duration: parseDurationText(video.duration),
+    );
+  }
+
+  /// Parses a YouTube "HH:MM:SS" / "MM:SS" duration, tolerating junk.
+  @visibleForTesting
+  static Duration parseDurationText(String text) {
+    final parts = text.split(':');
+    try {
+      if (parts.length == 2) {
+        return Duration(
+          minutes: int.parse(parts[0]),
+          seconds: int.parse(parts[1]),
+        );
+      }
+      if (parts.length == 3) {
+        return Duration(
+          hours: int.parse(parts[0]),
+          minutes: int.parse(parts[1]),
+          seconds: int.parse(parts[2]),
+        );
+      }
+    } catch (_) {}
+    return Duration.zero;
   }
 
   // ── URL resolution ────────────────────────────────────────────────────────

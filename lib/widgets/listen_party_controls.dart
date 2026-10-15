@@ -6,7 +6,9 @@ import '../providers/auth_provider.dart';
 import '../providers/friends_provider.dart';
 import '../providers/listen_party_provider.dart';
 import '../providers/collaboration_invites_provider.dart';
+import '../providers/update_provider.dart';
 import '../desktop/theme/desktop_theme.dart';
+import 'update_dialog.dart';
 
 class ListenPartyControls extends ConsumerStatefulWidget {
   final bool showLabel;
@@ -223,18 +225,26 @@ class _ListenPartyControlsState extends ConsumerState<ListenPartyControls> {
   }
 }
 
-class PartyInviteButton extends ConsumerStatefulWidget {
-  const PartyInviteButton({super.key});
+/// The app-wide bell: a single "Notifications" menu that surfaces everything
+/// worth telling the user about — collaboration invites and, when a newer
+/// GitHub release exists, an update prompt. On launch it kicks off the GitHub
+/// version check so an available update shows up without the user asking.
+class NotificationsButton extends ConsumerStatefulWidget {
+  const NotificationsButton({super.key});
 
   @override
-  ConsumerState<PartyInviteButton> createState() => _PartyInviteButtonState();
+  ConsumerState<NotificationsButton> createState() =>
+      _NotificationsButtonState();
 }
 
-class _PartyInviteButtonState extends ConsumerState<PartyInviteButton> {
+class _NotificationsButtonState extends ConsumerState<NotificationsButton> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // One-shot check per launch so a new GitHub release lands in the menu.
+      ref.read(updateProvider.notifier).checkForUpdate();
       if (Platform.isWindows) return;
       final uid = ref.read(authServiceProvider).currentUser?.uid;
       if (uid != null) {
@@ -243,12 +253,14 @@ class _PartyInviteButtonState extends ConsumerState<PartyInviteButton> {
     });
   }
 
-  Future<void> _openInvites() async {
+  Future<void> _openNotifications() async {
     final invites = ref.read(listenPartyProvider).invites;
     final playlistInvites = ref.read(collaborationInvitesProvider);
-    if (invites.isEmpty && playlistInvites.isEmpty) {
+    final update = ref.read(updateProvider);
+    final updateReady = update.status == UpdateStatus.available;
+    if (invites.isEmpty && playlistInvites.isEmpty && !updateReady) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No invitations.')),
+        const SnackBar(content: Text('No notifications.')),
       );
       return;
     }
@@ -256,13 +268,28 @@ class _PartyInviteButtonState extends ConsumerState<PartyInviteButton> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: dialogContext.appTheme.card,
-        title: Text('Invitations',
+        title: Text('Notifications',
             style: TextStyle(color: dialogContext.appTheme.text)),
         content: SizedBox(
           width: 460,
           child: ListView(
             shrinkWrap: true,
             children: [
+              if (updateReady)
+                ListTile(
+                  leading: Icon(Icons.system_update_alt,
+                      color: dialogContext.appTheme.nowPlayingAccent),
+                  title: const Text('Update available'),
+                  subtitle: Text(
+                      'Version ${update.result?.latestVersion ?? ''} is ready to install'),
+                  trailing: TextButton(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      showUpdateDialog(context, ref);
+                    },
+                    child: const Text('Update'),
+                  ),
+                ),
               ...invites.map(
                 (invite) => ListTile(
                   leading: const Icon(Icons.headphones_outlined),
@@ -340,16 +367,38 @@ class _PartyInviteButtonState extends ConsumerState<PartyInviteButton> {
 
   @override
   Widget build(BuildContext context) {
-    final count = ref.watch(listenPartyProvider).invites.length +
+    // Surface a just-detected release as an in-app notification, with a direct
+    // route into the update flow — this is the "notify me on launch" half.
+    ref.listen(updateProvider, (previous, next) {
+      final wasAvailable = previous?.status == UpdateStatus.available;
+      if (next.status == UpdateStatus.available && !wasAvailable && mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+                'Update available — v${next.result?.latestVersion ?? ''}'),
+            action: SnackBarAction(
+              label: 'Update',
+              onPressed: () => showUpdateDialog(context, ref),
+            ),
+          ),
+        );
+      }
+    });
+
+    final inviteCount = ref.watch(listenPartyProvider).invites.length +
         ref.watch(collaborationInvitesProvider).length;
+    final updateReady =
+        ref.watch(updateProvider.select((s) => s.status)) ==
+            UpdateStatus.available;
+    final count = inviteCount + (updateReady ? 1 : 0);
     final theme = AppThemeScope.maybeOf(context);
     return Stack(
       clipBehavior: Clip.none,
       children: [
         IconButton(
-          tooltip: 'Invitations',
+          tooltip: 'Notifications',
           icon: const Icon(Icons.notifications_none),
-          onPressed: _openInvites,
+          onPressed: _openNotifications,
         ),
         if (count > 0)
           Positioned(

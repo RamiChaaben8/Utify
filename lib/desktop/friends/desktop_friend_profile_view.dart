@@ -133,7 +133,7 @@ class _DesktopFriendProfileViewState
           child: Text(
             'Playlists',
             style: TextStyle(
-              color: theme.isVerdantNightDesktop ? theme.text : theme.button,
+              color: theme.nowPlayingAccent,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -186,7 +186,7 @@ class _ProfileHeader extends StatelessWidget {
 
     return Container(
       // Same gradient scrim the playlist header uses in Verdant Night.
-      decoration: theme.isVerdantNightDesktop
+      decoration: theme.usesModernDesign
           ? BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -219,9 +219,7 @@ class _ProfileHeader extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: theme.isVerdantNightDesktop
-                            ? theme.text
-                            : theme.button,
+                        color: theme.nowPlayingAccent,
                         fontSize: 44,
                         fontWeight: FontWeight.bold,
                         height: 1.1,

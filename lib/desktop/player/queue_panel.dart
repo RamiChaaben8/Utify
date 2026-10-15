@@ -134,7 +134,7 @@ class _Header extends StatelessWidget {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: context.appTheme.isVerdantNightDesktop
+                color: context.appTheme.usesModernDesign
                     ? context.appTheme.highlight
                     : context.appTheme.button.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
@@ -316,9 +316,7 @@ class _SectionHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: Text(
         label,
         style: TextStyle(
-          color: ctx.appTheme.isVerdantNightDesktop
-              ? ctx.appTheme.text
-              : ctx.appTheme.button,
+          color: ctx.appTheme.nowPlayingAccent,
           fontSize: QueueSizes.of.sectionLabel,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.5,
@@ -344,12 +342,12 @@ class _NowPlayingTile extends ConsumerWidget {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: context.appTheme.isVerdantNightDesktop
+        color: context.appTheme.usesModernDesign
             ? context.appTheme.highlight
             : context.appTheme.button.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: context.appTheme.isVerdantNightDesktop
+            color: context.appTheme.usesModernDesign
                 ? context.appTheme.highlight
                 : context.appTheme.button.withValues(alpha: 0.25)),
       ),

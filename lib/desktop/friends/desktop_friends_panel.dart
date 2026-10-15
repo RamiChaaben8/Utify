@@ -298,7 +298,7 @@ class _DesktopFriendsPanelState extends ConsumerState<DesktopFriendsPanel> {
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: context.appTheme.isVerdantNightDesktop
+                        color: context.appTheme.usesModernDesign
                             ? context.appTheme.subtext
                             : context.appTheme.button,
                       ),
@@ -1178,7 +1178,7 @@ class _Loading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: CircularProgressIndicator(
-        color: context.appTheme.isVerdantNightDesktop
+        color: context.appTheme.usesModernDesign
             ? context.appTheme.subtext
             : context.appTheme.button,
       ),

@@ -8,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/song.dart';
 import '../services/youtube_service.dart';
+import '../services/ytmusic_service.dart';
 import '../services/playlist_import_service.dart';
+import 'ytmusic_home_provider.dart';
 
 // Singleton YoutubeService
 final youtubeServiceProvider = Provider<YoutubeService>((ref) {
@@ -54,9 +56,10 @@ class SearchState {
 
 class SearchNotifier extends StateNotifier<SearchState> {
   final YoutubeService _youtube;
+  final YtMusicService _music;
   int _requestId = 0;
 
-  SearchNotifier(this._youtube) : super(const SearchState());
+  SearchNotifier(this._youtube, this._music) : super(const SearchState());
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) {
@@ -69,21 +72,24 @@ class SearchNotifier extends StateNotifier<SearchState> {
     state = state.copyWith(isLoading: true, query: query, clearError: true);
 
     try {
-      final results = await _youtube.search(query);
+      // Search the YouTube Music catalogue (Innertube) — the same source the
+      // home feed uses — instead of scraping the YouTube results page. The
+      // `youtube_explode_dart` search parser throws on live-stream results
+      // (a bad `int.parse` on the "Streamed …" timestamp and a dynamic
+      // extension call), which aborted whole searches.
+      final songs = await _music.searchSongs(query, curated: false);
       if (requestId != _requestId) return;
+      final results = [for (final s in songs) s.toSong()];
       state = state.copyWith(results: results, isLoading: false);
 
       // Immediately start resolving stream URLs for the top results in the
       // background. By the time the user taps a song the manifest is already
       // cached, so playback starts without waiting for a network round-trip.
-      // maxConcurrent=3 avoids hammering YouTube and triggering rate-limits.
+      // maxConcurrent=4 avoids hammering YouTube and triggering rate-limits.
       _youtube.prefetchBatch(
         results.take(6).map((s) => s.id).toList(),
         maxConcurrent: 4,
       );
-    } on YoutubeServiceException catch (e) {
-      if (requestId != _requestId) return;
-      state = state.copyWith(isLoading: false, error: e.message);
     } catch (e) {
       if (requestId != _requestId) return;
       state = state.copyWith(
@@ -102,5 +108,8 @@ class SearchNotifier extends StateNotifier<SearchState> {
 
 final searchProvider =
     StateNotifierProvider<SearchNotifier, SearchState>((ref) {
-  return SearchNotifier(ref.watch(youtubeServiceProvider));
+  return SearchNotifier(
+    ref.watch(youtubeServiceProvider),
+    ref.watch(ytMusicServiceProvider),
+  );
 });

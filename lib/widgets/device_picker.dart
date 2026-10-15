@@ -4,8 +4,7 @@
 // Spotify-style device picker.
 //
 // DevicePickerButton — cast icon in the player bar/mini-player.
-//   Green = another device is active (your music is elsewhere).
-//   White = this device is active.
+//   Painted in the active theme's accent colour in every state.
 //
 // DevicePickerSheet — bottom sheet listing all devices.
 //   Tap "Listen here" to claim this device as active.
@@ -39,12 +38,9 @@ class DevicePickerButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isActive = ref.watch(playerProvider.select((s) => s.isActiveDevice));
     final theme = AppThemeScope.maybeOf(context);
-    // Accent = another device owns playback; muted = we own it (or none active).
-    // The old `isVerdantNightDesktop ? iconDefault : …` branch collapsed both
-    // states to the same grey under Verdant Night, silently losing the warning.
-    final color = isActive
-        ? theme?.iconDefault ?? Colors.white
-        : theme?.nowPlayingAccent ?? const Color(0xFF1DB954);
+    // Painted in the active theme's accent colour in every state — the control
+    // should read green/red/lime, never white or grey.
+    final color = theme?.nowPlayingAccent ?? const Color(0xFF1DB954);
 
     return IconButton(
       icon: Icon(icon, color: color, size: size),
