@@ -29,6 +29,32 @@ import 'dart:convert';
 
 import 'app_constants.dart';
 
+// ── Windows installer invocation ─────────────────────────────────────────────
+
+/// Arguments passed to the Inno Setup installer on Windows.
+///
+/// These are deliberately **flag-only**.  Never add an argument that carries a
+/// value (no `/LOG=…`, no `/DIR=…`): Dart quotes process arguments itself, and
+/// Inno Setup then mis-parses those quotes.  A `/LOG="C:\…\utify-setup.log"`
+/// argument reached Setup as `/LOG=\"C:\…\utify-setup.log\"`, and Setup died
+/// with
+///
+///     Error creating log file: The filename, directory name, or volume label
+///     syntax is incorrect.
+///
+/// aborting the update before it installed anything.  No value-bearing
+/// argument is needed: Setup remembers its install directory
+/// (`UsePreviousAppDir`) and always writes a log (`SetupLogging=yes` in
+/// `installer/utify.iss`).
+///
+/// Guarded by `test/update_launch_args_test.dart`.
+const List<String> windowsSetupArgs = <String>[
+  '/SILENT',
+  '/SUPPRESSMSGBOXES',
+  '/CLOSEAPPLICATIONS',
+  '/NORESTART',
+];
+
 // ── Result types ─────────────────────────────────────────────────────────────
 
 class UpdateResult {
@@ -322,20 +348,12 @@ class UpdateService {
     final tempPath = tempDir.path;
     final before = _snapshotSetupArtifacts(tempPath);
 
-    // Deliberately no /DIR and no /LOG: both need quoting to survive paths
-    // containing spaces, and Dart quotes command-line arguments itself, which
-    // Inno Setup then mis-parses.  The installer remembers its previous
-    // directory (UsePreviousAppDir) and always writes a log thanks to
-    // SetupLogging=yes in utify.iss.
+    // Flag-only arguments — see [windowsSetupArgs] for why they must stay
+    // value-free.
     try {
       await Process.start(
         installerPath,
-        const [
-          '/SILENT',
-          '/SUPPRESSMSGBOXES',
-          '/CLOSEAPPLICATIONS',
-          '/NORESTART',
-        ],
+        windowsSetupArgs,
         mode: ProcessStartMode.detached,
         runInShell: false,
       );

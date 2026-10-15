@@ -144,6 +144,19 @@ class _UpdateDialogShell extends ConsumerWidget {
         return [
           _cancelBtn(context, ref, theme),
           const SizedBox(width: 4),
+          // Escape hatch: if the in-app installer fails for any reason, the
+          // user can still get the release by hand.
+          TextButton.icon(
+            style: TextButton.styleFrom(foregroundColor: theme.subtext),
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: const Text('Get it from GitHub'),
+            onPressed: () async {
+              final url = Uri.parse(state.result?.releasePage ??
+                  AppConstants.githubReleasesPageUrl);
+              await launchUrl(url, mode: LaunchMode.externalApplication);
+            },
+          ),
+          const SizedBox(width: 4),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: theme.button,
