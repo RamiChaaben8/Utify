@@ -175,6 +175,52 @@ jobs:
         with:
           channel: stable
           cache: true
+      - name: Preinstall the Android NDK Flutter requires
+        run: |
+          set -eu
+
+          # GitHub's ubuntu runners ship a fixed set of NDKs, and Flutter's
+          # default (FlutterExtension.kt -> ndkVersion) is usually not among
+          # them.  When it is missing, AGP asks sdkmanager to download it in
+          # the middle of the build, and that download is flaky
+          # ("Error on ZipFile unknown archive"), which fails the whole APK
+          # build.  Install it up front, with retries, instead.
+          #
+          # Note: the app deliberately keeps ndkVersion = flutter.ndkVersion
+          # (some plugins declare the same), so we install exactly that version.
+          FLUTTER_ROOT="$(flutter --version --machine | tr -d '\r' \
+            | sed -n 's/.*"flutterRoot": *"\([^"]*\)".*/\1/p')"
+          EXT="$FLUTTER_ROOT/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt"
+          NDK_VERSION="$(sed -n 's/.*val ndkVersion: String = "\([^"]*\)".*/\1/p' "$EXT" | head -n 1)"
+          if [ -z "$NDK_VERSION" ]; then
+            # Fallback: search the whole Gradle plugin in case Flutter moved it.
+            NDK_VERSION="$(grep -rhoP 'val ndkVersion: String = "\K[0-9][0-9.]*' \
+              "$FLUTTER_ROOT/packages/flutter_tools/gradle" 2>/dev/null | head -n 1)"
+          fi
+          if [ -z "$NDK_VERSION" ]; then
+            echo "::error::Could not read Flutter's NDK version (flutterRoot=$FLUTTER_ROOT)"
+            exit 1
+          fi
+          echo "Flutter requires Android NDK $NDK_VERSION"
+
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          if [ -d "$SDK/ndk/$NDK_VERSION" ]; then
+            echo "NDK $NDK_VERSION is already installed"
+            exit 0
+          fi
+
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          for attempt in 1 2 3; do
+            echo "Installing NDK $NDK_VERSION (attempt $attempt)"
+            # `yes` feeds the licence prompts.
+            if yes | "$SDKMANAGER" --install "ndk;$NDK_VERSION"; then
+              echo "NDK $NDK_VERSION installed"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::Failed to install Android NDK $NDK_VERSION after 3 attempts"
+          exit 1
       - run: flutter pub get
       - name: Build release APKs
         env:
