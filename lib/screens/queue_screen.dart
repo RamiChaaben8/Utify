@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/artwork_cache_manager.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
+import '../widgets/artist_link.dart';
 
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});
@@ -288,11 +289,16 @@ class _NowPlayingTile extends StatelessWidget {
             fontSize: 14,
           ),
         ),
-        subtitle: Text(
-          song.channelName,
+        subtitle: ArtistNames(
+          refs: song.artistRefs,
+          fallbackName: song.channelName,
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12),
+          hoverStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white),
         ),
         trailing:
             const Icon(Icons.graphic_eq, color: Color(0xFF1DB954), size: 22),
@@ -356,11 +362,16 @@ class _UpNextTile extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Colors.white, fontSize: 14),
         ),
-        subtitle: Text(
-          song.channelName,
+        subtitle: ArtistNames(
+          refs: song.artistRefs,
+          fallbackName: song.channelName,
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 12),
+          hoverStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -447,11 +458,17 @@ class _QueueContextMenu extends ConsumerWidget {
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 14)),
-                      Text(song.channelName,
+                      ArtistNames(
+                          refs: song.artistRefs,
+                          fallbackName: song.channelName,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              color: Color(0xFFB3B3B3), fontSize: 12)),
+                              color: Color(0xFFB3B3B3), fontSize: 12),
+                          hoverStyle: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.white)),
                     ],
                   ),
                 ),

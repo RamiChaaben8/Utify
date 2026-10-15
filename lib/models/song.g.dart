@@ -28,13 +28,17 @@ class SongAdapter extends TypeAdapter<Song> {
       streamUrlFetchedAt: fields[6] as DateTime?,
       isLocal: fields[7] == true,       // default false for old records
       localPath: fields[8] as String?,
+      artistNames:
+          (fields[9] as List?)?.cast<String>() ?? const <String>[],
+      artistBrowseIds:
+          (fields[10] as List?)?.cast<String>() ?? const <String>[],
     );
   }
 
   @override
   void write(BinaryWriter writer, Song obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -52,7 +56,11 @@ class SongAdapter extends TypeAdapter<Song> {
       ..writeByte(7)
       ..write(obj.isLocal)
       ..writeByte(8)
-      ..write(obj.localPath);
+      ..write(obj.localPath)
+      ..writeByte(9)
+      ..write(obj.artistNames)
+      ..writeByte(10)
+      ..write(obj.artistBrowseIds);
   }
 
   @override

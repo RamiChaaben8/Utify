@@ -17,11 +17,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../services/artwork_cache_manager.dart';
 import '../models/song.dart';
+import '../models/ytmusic_models.dart';
 import '../providers/youtube_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/library_provider.dart';
+import '../providers/ytmusic_home_provider.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/artist_link.dart';
 import '../screens/now_playing_screen.dart';
+import '../screens/artist_screen.dart';
+import '../screens/album_screen.dart';
 import '../providers/search_history_provider.dart';
 import '../widgets/profile_avatar.dart';
 
@@ -36,6 +41,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   Timer? _debounce;
+
+  /// The last submitted query, used to fetch mixed (artist/album) results.
+  String _committed = '';
 
   @override
   void initState() {
@@ -57,6 +65,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _debounce?.cancel();
     final q = _controller.text.trim();
     if (q.isEmpty) {
+      if (_committed.isNotEmpty) {
+        setState(() => _committed = '');
+      }
       ref.read(searchProvider.notifier).clear();
       return;
     }
@@ -71,12 +82,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (query.isEmpty) return;
     if (overrideQuery != null) _controller.text = overrideQuery;
     if (unfocus) _focusNode.unfocus();
+    setState(() => _committed = query);
     ref.read(searchHistoryProvider.notifier).addQuery(query);
     ref.read(searchProvider.notifier).search(query);
   }
 
   void _clearSearch() {
     _controller.clear();
+    setState(() => _committed = '');
     ref.read(searchProvider.notifier).clear();
     _focusNode.requestFocus();
   }
@@ -86,6 +99,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final searchState = ref.watch(searchProvider);
     final currentPlayingId = ref.watch(playerProvider.select((s) => s.currentSong?.id));
     final isPlayerPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final extras = _committed.isEmpty
+        ? null
+        : ref.watch(ytSearchAllProvider(_committed)).valueOrNull;
+    final hasExtras = extras != null &&
+        (extras.artists.isNotEmpty || extras.albums.isNotEmpty);
     final hasQuery =
         _controller.text.trim().isNotEmpty || searchState.results.isNotEmpty;
 
@@ -184,6 +202,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
 
+            // ── Artists / albums (from the YouTube Music search) ──────────
+            if (hasExtras)
+              SliverToBoxAdapter(
+                child: _ExtrasSection(
+                  artists: extras.artists,
+                  albums: extras.albums,
+                  onArtist: (a) => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => ArtistScreen(browseId: a.browseId)),
+                  ),
+                  onAlbum: (a) => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => AlbumScreen(browseId: a.browseId)),
+                  ),
+                ),
+              ),
+
             // ── Results header ───────────────────────────────────────────
             if (searchState.results.isNotEmpty && !searchState.isLoading)
               SliverToBoxAdapter(
@@ -220,11 +255,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   childCount: searchState.results.length,
                 ),
               )
-            else if (!searchState.isLoading && !hasQuery)
+            else if (!searchState.isLoading && !hasQuery && !hasExtras)
               SliverToBoxAdapter(
                 child: _BrowseCategories(onSearch: _doSearch),
               )
-            else if (!searchState.isLoading && hasQuery)
+            else if (!searchState.isLoading && hasQuery && !hasExtras)
               SliverToBoxAdapter(
                 child: _SearchHistoryOrEmpty(
                     query: searchState.query, onSearch: _doSearch),
@@ -544,13 +579,19 @@ class _VideoCardState extends ConsumerState<_VideoCard> {
                                 size: 13, color: Color(0xFF6A6A6A)),
                             const SizedBox(width: 4),
                             Expanded(
-                              child: Text(
-                                song.channelName,
+                              child: ArtistNames(
+                                refs: song.artistRefs,
+                                fallbackName: song.channelName,
                                 maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Color(0xFF9A9A9A),
                                   fontSize: 12,
+                                ),
+                                hoverStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: Colors.white,
                                 ),
                               ),
                             ),
@@ -773,5 +814,172 @@ class _SearchHistoryOrEmpty extends ConsumerWidget {
       );
     }
     return const SizedBox.shrink();
+  }
+}
+
+// ─── Artist / album extras ────────────────────────────────────────────────────
+
+/// Artist and album matches, shown above the song results on mobile search.
+class _ExtrasSection extends StatelessWidget {
+  final List<YtArtist> artists;
+  final List<YtAlbum> albums;
+  final void Function(YtArtist) onArtist;
+  final void Function(YtAlbum) onAlbum;
+
+  const _ExtrasSection({
+    required this.artists,
+    required this.albums,
+    required this.onArtist,
+    required this.onAlbum,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (artists.isNotEmpty) ...[
+          const _ExtrasHeading('Artists'),
+          SizedBox(
+            height: 150,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: artists.length,
+              itemBuilder: (_, i) {
+                final a = artists[i];
+                return GestureDetector(
+                  onTap: () => onArtist(a),
+                  child: Container(
+                    width: 110,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: Column(
+                      children: [
+                        ClipOval(
+                          child: a.pictureUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: a.pictureUrl,
+                                  cacheManager: ArtworkCacheManager.instance,
+                                  width: 110,
+                                  height: 110,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => _ph(),
+                                )
+                              : _ph(),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          a.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+        if (albums.isNotEmpty) ...[
+          const _ExtrasHeading('Albums'),
+          SizedBox(
+            height: 178,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: albums.length,
+              itemBuilder: (_, i) {
+                final a = albums[i];
+                return GestureDetector(
+                  onTap: () => onAlbum(a),
+                  child: Container(
+                    width: 120,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: a.coverUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: a.coverUrl,
+                                  cacheManager: ArtworkCacheManager.instance,
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => _albPh(),
+                                )
+                              : _albPh(),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          a.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          [
+                            a.typeLabel,
+                            if (a.artist.isNotEmpty) a.artist,
+                          ].join(' • '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Color(0xFF8A8A8A), fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _ph() => Container(
+        width: 110,
+        height: 110,
+        color: const Color(0xFF1A1A1A),
+        child: const Icon(Icons.person, size: 40, color: Color(0xFF555555)),
+      );
+
+  Widget _albPh() => Container(
+        width: 120,
+        height: 120,
+        color: const Color(0xFF1A1A1A),
+        child: const Icon(Icons.album, size: 40, color: Color(0xFF555555)),
+      );
+}
+
+class _ExtrasHeading extends StatelessWidget {
+  final String text;
+  const _ExtrasHeading(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+            color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+    );
   }
 }

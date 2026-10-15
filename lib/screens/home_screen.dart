@@ -13,6 +13,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/song.dart';
 import '../models/ytmusic_models.dart';
@@ -21,7 +22,11 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/guest_session_provider.dart';
 import 'now_playing_screen.dart';
+import 'artist_screen.dart';
+import 'album_screen.dart';
+import '../services/artwork_cache_manager.dart';
 import '../widgets/app_thumbnail.dart';
+import '../widgets/artist_link.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/listen_party_controls.dart';
 
@@ -129,6 +134,32 @@ class HomeScreen extends ConsumerWidget {
                       );
                     },
                     childCount: sections.length,
+                  ),
+                ),
+
+              // ── Artists (fetched by the feed, shown here) ────────────────
+              if (!feed.isLoading && feed.effectiveArtists.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _ArtistCardsRow(
+                    artists: feed.effectiveArtists.take(12).toList(),
+                  ),
+                ),
+
+              // ── Albums for you ──────────────────────────────────────────
+              if (!feed.isLoading && feed.albumsForYou.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _AlbumCardsRow(
+                    label: 'Albums for you',
+                    albums: feed.albumsForYou.take(12).toList(),
+                  ),
+                ),
+
+              // ── New releases ────────────────────────────────────────────
+              if (!feed.isLoading && feed.effectiveNewReleases.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _AlbumCardsRow(
+                    label: 'New releases',
+                    albums: feed.effectiveNewReleases.take(12).toList(),
                   ),
                 ),
 
@@ -376,11 +407,16 @@ class _SongCard extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            Text(
-              song.channelName,
+            ArtistNames(
+              refs: song.artistRefs,
+              fallbackName: song.channelName,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 11),
+              hoverStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Colors.white),
             ),
           ],
         ),
@@ -426,4 +462,209 @@ class _SectionSkeleton extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── Artist cards row ─────────────────────────────────────────────────────────
+
+class _ArtistCardsRow extends StatelessWidget {
+  final List<YtArtist> artists;
+  const _ArtistCardsRow({required this.artists});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('ARTISTS YOU MIGHT LIKE',
+                    style: TextStyle(
+                        color: Color(0xFFB3B3B3),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1)),
+                SizedBox(height: 2),
+                Text('Similar to your favorites',
+                    style: TextStyle(
+                        color: Color(0xFF1DB954),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 148,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: artists.length,
+              itemBuilder: (_, i) {
+                final a = artists[i];
+                return GestureDetector(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ArtistScreen(browseId: a.browseId),
+                  )),
+                  child: Container(
+                    width: 110,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: Column(
+                      children: [
+                        ClipOval(
+                          child: a.pictureUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: a.pictureUrl,
+                                  cacheManager: ArtworkCacheManager.instance,
+                                  width: 110,
+                                  height: 110,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => _ph(),
+                                )
+                              : _ph(),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          a.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ph() => Container(
+        width: 110,
+        height: 110,
+        color: const Color(0xFF1A1A1A),
+        child: const Icon(Icons.person, size: 40, color: Color(0xFF555555)),
+      );
+}
+
+// ─── Album cards row ──────────────────────────────────────────────────────────
+
+class _AlbumCardsRow extends StatelessWidget {
+  final String label;
+  final List<YtAlbum> albums;
+  const _AlbumCardsRow({required this.label, required this.albums});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                color: Color(0xFFB3B3B3),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 180,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: albums.length,
+              itemBuilder: (_, i) {
+                final a = albums[i];
+                return GestureDetector(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AlbumScreen(browseId: a.browseId),
+                  )),
+                  child: Container(
+                    width: 120,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: a.coverUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: a.coverUrl,
+                                  cacheManager: ArtworkCacheManager.instance,
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => _ph(),
+                                )
+                              : _ph(),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          a.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              '${a.typeLabel}${a.artist.isNotEmpty ? ' • ' : ''}',
+                              style: const TextStyle(
+                                  color: Color(0xFF8A8A8A), fontSize: 11),
+                            ),
+                            if (a.artist.isNotEmpty)
+                              Flexible(
+                                child: ArtistNameLink(
+                                  name: a.artist,
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                      color: Color(0xFF8A8A8A), fontSize: 11),
+                                  hoverStyle: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: Colors.white),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ph() => Container(
+        width: 120,
+        height: 120,
+        color: const Color(0xFF1A1A1A),
+        child: const Icon(Icons.album, size: 40, color: Color(0xFF555555)),
+      );
 }

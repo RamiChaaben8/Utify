@@ -34,3 +34,8 @@ final desktopFriendProfileRequestProvider =
 /// Set a non-empty string to navigate; the shell clears it after consuming.
 final desktopYtBrowseRequestProvider =
     StateProvider<String?>((ref) => null);
+
+/// A YouTube Music artist browse ID to open in the centre view.
+/// Set a non-empty string to navigate; the shell clears it after consuming.
+final desktopYtArtistRequestProvider =
+    StateProvider<String?>((ref) => null);

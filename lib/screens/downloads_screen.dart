@@ -22,6 +22,7 @@ import '../providers/player_provider.dart';
 import '../services/download_service.dart';
 import '../utils/thumbnail_url.dart';
 import '../widgets/app_thumbnail.dart';
+import '../widgets/artist_link.dart';
 import 'now_playing_screen.dart';
 
 class DownloadsScreen extends ConsumerWidget {
@@ -352,8 +353,7 @@ class _DownloadedSongTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sizeMB = entry.sizeBytes / 1024 / 1024;
-    final subtitle = [
-      entry.artist,
+    final meta = [
       if (sizeMB > 0) '${sizeMB.toStringAsFixed(1)} MB',
       entry.format.toUpperCase(),
     ].where((s) => s.isNotEmpty).join(' · ');
@@ -385,11 +385,36 @@ class _DownloadedSongTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Colors.white, fontSize: 14),
         ),
-        subtitle: Text(
-          subtitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white54, fontSize: 12),
+        subtitle: Row(
+          children: [
+            if (entry.artist.isNotEmpty) ...[
+              Flexible(
+                child: ArtistNameLink(
+                  name: entry.artist,
+                  maxLines: 1,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  hoverStyle: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.white,
+                  ),
+                ),
+              ),
+              if (meta.isNotEmpty)
+                const Text(' · ',
+                    style: TextStyle(color: Colors.white54, fontSize: 12)),
+            ],
+            if (meta.isNotEmpty)
+              Flexible(
+                child: Text(
+                  meta,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ),
+          ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

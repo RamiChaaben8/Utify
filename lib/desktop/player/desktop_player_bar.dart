@@ -13,6 +13,7 @@ import '../../providers/lyrics_provider.dart';
 import '../../providers/panel_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../widgets/song_context_menu.dart';
+import '../../widgets/artist_link.dart';
 import '../../widgets/device_picker.dart';
 import '../theme/desktop_theme.dart';
 import '../../widgets/listen_party_controls.dart';
@@ -534,12 +535,17 @@ class _SongInfo extends ConsumerWidget {
                   ),
                 ),
                 SizedBox(height: 2),
-                Text(
-                  s.channelName,
+                ArtistNames(
+                  refs: s.artistRefs,
+                  fallbackName: s.channelName,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style:
                       TextStyle(color: context.appTheme.subtext, fontSize: 11),
+                  hoverStyle: TextStyle(
+                      color: context.appTheme.text,
+                      fontSize: 11,
+                      decoration: TextDecoration.underline,
+                      decorationColor: context.appTheme.text),
                 ),
               ],
             ),
@@ -609,12 +615,17 @@ class _SongInfo extends ConsumerWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  Text(
-                    next.channelName,
+                  ArtistNames(
+                    refs: next.artistRefs,
+                    fallbackName: next.channelName,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         color: context.appTheme.subtext, fontSize: 10),
+                    hoverStyle: TextStyle(
+                        color: context.appTheme.text,
+                        fontSize: 10,
+                        decoration: TextDecoration.underline,
+                        decorationColor: context.appTheme.text),
                   ),
                 ],
               ),

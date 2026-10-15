@@ -24,6 +24,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/lyrics_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../services/youtube_service.dart';
+import '../../widgets/artist_link.dart';
 import '../theme/desktop_theme.dart';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -159,13 +160,19 @@ class _LyricsPanelState extends ConsumerState<LyricsPanel> {
                               ),
                             ),
                             SizedBox(height: 4),
-                            Text(
-                              song.channelName,
+                            ArtistNames(
+                              refs: song.artistRefs,
+                              fallbackName: song.channelName,
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: context.appTheme.subtext,
                                 fontSize: 14,
+                              ),
+                              hoverStyle: TextStyle(
+                                color: context.appTheme.text,
+                                fontSize: 14,
+                                decoration: TextDecoration.underline,
+                                decorationColor: context.appTheme.text,
                               ),
                             ),
                             SizedBox(height: 14),

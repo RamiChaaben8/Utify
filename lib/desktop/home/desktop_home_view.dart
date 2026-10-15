@@ -14,6 +14,7 @@ import '../shell/desktop_navigation.dart';
 import '../theme/desktop_theme.dart';
 import '../../utils/thumbnail_url.dart';
 import '../../widgets/app_thumbnail.dart';
+import '../../widgets/artist_link.dart';
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 
@@ -568,11 +569,17 @@ class _QuickPickRowState extends State<_QuickPickRow> {
                             fontSize: 13,
                             fontWeight: FontWeight.w600)),
                     const SizedBox(height: 2),
-                    Text(widget.song.artist,
+                    ArtistNames(
+                        refs: widget.song.artistRefs,
+                        fallbackName: widget.song.artist,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                         style:
-                            TextStyle(color: theme.subtext, fontSize: 12)),
+                            TextStyle(color: theme.subtext, fontSize: 12),
+                        hoverStyle: TextStyle(
+                            color: theme.text,
+                            fontSize: 12,
+                            decoration: TextDecoration.underline,
+                            decorationColor: theme.text)),
                   ],
                 ),
               ),
@@ -998,7 +1005,24 @@ class _SongCard extends StatelessWidget {
     return _CardBase(
       coverUrl: _localSongCoverUrl(song),
       title: song.title,
-      subtitle: song.channelName,
+      subtitleWidget: ArtistNames(
+        refs: song.artistRefs,
+        fallbackName: song.channelName,
+        enabled: !song.isLocal,
+        maxLines: 1,
+        style: TextStyle(
+          color: theme.subtext,
+          fontSize: _kCardSubtitleSize,
+          height: _kCardSubtitleHeight,
+        ),
+        hoverStyle: TextStyle(
+          color: theme.text,
+          fontSize: _kCardSubtitleSize,
+          height: _kCardSubtitleHeight,
+          decoration: TextDecoration.underline,
+          decorationColor: theme.text,
+        ),
+      ),
       titleLines: 1,
       subtitleLines: 1,
       onTap: () => ref.read(playerProvider.notifier).playSong(song),
@@ -1021,7 +1045,23 @@ class _YtSongCard extends StatelessWidget {
     return _CardBase(
       coverUrl: _songCoverUrl(song),
       title: song.title,
-      subtitle: song.artist,
+      subtitleWidget: ArtistNames(
+        refs: song.artistRefs,
+        fallbackName: song.artist,
+        maxLines: 1,
+        style: TextStyle(
+          color: theme.subtext,
+          fontSize: _kCardSubtitleSize,
+          height: _kCardSubtitleHeight,
+        ),
+        hoverStyle: TextStyle(
+          color: theme.text,
+          fontSize: _kCardSubtitleSize,
+          height: _kCardSubtitleHeight,
+          decoration: TextDecoration.underline,
+          decorationColor: theme.text,
+        ),
+      ),
       titleLines: 1,
       subtitleLines: 1,
       onTap: () =>
@@ -1133,15 +1173,34 @@ class _AlbumCardState extends ConsumerState<_AlbumCard> {
                       ),
                     ],
                     Expanded(
-                      child: Text(
-                        a.displaySubtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: theme.subtext,
-                          fontSize: _kCardSubtitleSize,
-                          height: _kCardSubtitleHeight,
-                        ),
+                      child: Wrap(
+                        children: [
+                          Text(
+                            '${a.typeLabel}${a.artist.isNotEmpty ? ' • ' : ''}',
+                            style: TextStyle(
+                              color: theme.subtext,
+                              fontSize: _kCardSubtitleSize,
+                              height: _kCardSubtitleHeight,
+                            ),
+                          ),
+                          if (a.artist.isNotEmpty)
+                            ArtistNameLink(
+                              name: a.artist,
+                              maxLines: 2,
+                              style: TextStyle(
+                                color: theme.subtext,
+                                fontSize: _kCardSubtitleSize,
+                                height: _kCardSubtitleHeight,
+                              ),
+                              hoverStyle: TextStyle(
+                                color: theme.text,
+                                fontSize: _kCardSubtitleSize,
+                                height: _kCardSubtitleHeight,
+                                decoration: TextDecoration.underline,
+                                decorationColor: theme.text,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ],
@@ -1157,15 +1216,15 @@ class _AlbumCardState extends ConsumerState<_AlbumCard> {
 
 // ─── YtArtist card (round) ────────────────────────────────────────────────────
 
-class _YtArtistCard extends StatefulWidget {
+class _YtArtistCard extends ConsumerStatefulWidget {
   final YtArtist artist;
   const _YtArtistCard({required this.artist});
 
   @override
-  State<_YtArtistCard> createState() => _YtArtistCardState();
+  ConsumerState<_YtArtistCard> createState() => _YtArtistCardState();
 }
 
-class _YtArtistCardState extends State<_YtArtistCard> {
+class _YtArtistCardState extends ConsumerState<_YtArtistCard> {
   bool _hovered = false;
 
   static const double _imageSize = 160;
@@ -1178,9 +1237,9 @@ class _YtArtistCardState extends State<_YtArtistCard> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Opening: ${widget.artist.name}'),
-            duration: const Duration(seconds: 2))),
+        onTap: () => ref
+            .read(desktopYtArtistRequestProvider.notifier)
+            .state = widget.artist.browseId,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1266,7 +1325,9 @@ class _YtArtistCardState extends State<_YtArtistCard> {
 class _CardBase extends StatefulWidget {
   final String coverUrl;
   final String title;
-  final String subtitle;
+
+  /// Rich subtitle (a tappable artist link).
+  final Widget subtitleWidget;
   final int titleLines;
   final int subtitleLines;
   final VoidCallback onTap;
@@ -1275,7 +1336,7 @@ class _CardBase extends StatefulWidget {
   const _CardBase({
     required this.coverUrl,
     required this.title,
-    required this.subtitle,
+    required this.subtitleWidget,
     required this.onTap,
     required this.theme,
     this.titleLines = 1,
@@ -1356,16 +1417,7 @@ class _CardBaseState extends State<_CardBase> {
                 height: _kCardSubtitleSize *
                     _kCardSubtitleHeight *
                     widget.subtitleLines,
-                child: Text(
-                  widget.subtitle,
-                  maxLines: widget.subtitleLines,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: t.subtext,
-                    fontSize: _kCardSubtitleSize,
-                    height: _kCardSubtitleHeight,
-                  ),
-                ),
+                child: widget.subtitleWidget,
               ),
             ],
           ),

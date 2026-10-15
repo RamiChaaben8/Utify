@@ -17,6 +17,7 @@ import '../../models/song.dart';
 import '../../providers/player_provider.dart';
 import '../theme/desktop_theme.dart';
 import '../theme/ui_sizes.dart';
+import '../../widgets/artist_link.dart';
 import '../widgets/song_leading_indicator.dart';
 
 class QueuePanel extends ConsumerWidget {
@@ -372,12 +373,17 @@ class _NowPlayingTile extends ConsumerWidget {
             fontSize: s.songTitle,
           ),
         ),
-        subtitle: Text(
-          song.channelName,
+        subtitle: ArtistNames(
+          refs: song.artistRefs,
+          fallbackName: song.channelName,
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
           style: TextStyle(
               color: context.appTheme.subtext, fontSize: s.songSubtitle),
+          hoverStyle: TextStyle(
+              color: context.appTheme.text,
+              fontSize: s.songSubtitle,
+              decoration: TextDecoration.underline,
+              decorationColor: context.appTheme.text),
         ),
         trailing: EqualizerBars(
           color: context.appTheme.nowPlayingAccent,
@@ -441,12 +447,17 @@ class _UpNextTileState extends ConsumerState<_UpNextTile> {
               style: TextStyle(
                   color: context.appTheme.text, fontSize: s.songTitle),
             ),
-            subtitle: Text(
-              widget.song.channelName,
+            subtitle: ArtistNames(
+              refs: widget.song.artistRefs,
+              fallbackName: widget.song.channelName,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                   color: context.appTheme.subtext, fontSize: s.songSubtitle),
+              hoverStyle: TextStyle(
+                  color: context.appTheme.text,
+                  fontSize: s.songSubtitle,
+                  decoration: TextDecoration.underline,
+                  decorationColor: context.appTheme.text),
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,

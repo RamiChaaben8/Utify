@@ -23,6 +23,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 
+import '../models/artist_ref.dart';
 import '../models/ytmusic_models.dart';
 import '../utils/thumbnail_url.dart';
 import 'ytmusic_feed_cache.dart';
@@ -183,6 +184,9 @@ class YtMusicService {
       'related_artists_$browseId';
   static String upNextKey(String videoId) => 'upnext_$videoId';
   static String albumTracksKey(String browseId) => 'album_tracks_$browseId';
+  static String artistPageKey(String browseId) => 'artist_page_$browseId';
+  static String searchAllKey(String query) =>
+      'search_all_${query.toLowerCase().trim()}';
 
   // ── L1: in-memory cache ───────────────────────────────────────────────────
 
@@ -509,6 +513,136 @@ class YtMusicService {
 
   // ── Duration helper ────────────────────────────────────────────────────────
 
+  /// Reads the YouTube Music page type from a `navigationEndpoint` map
+  /// (e.g. `MUSIC_PAGE_TYPE_ARTIST`, `MUSIC_PAGE_TYPE_ALBUM`). Used to tell
+  /// apart the mixed rows returned by an unfiltered search.
+  String? _pageTypeOfBrowseEndpoint(dynamic node) => _nav<String>(node, [
+        'browseEndpoint',
+        'browseEndpointContextSupportedConfigs',
+        'browseEndpointContextMusicConfig',
+        'pageType'
+      ]);
+
+  /// Returns the artist browse id carried by a subtitle [run], or null when the
+  /// run has no artist link. Artist channel ids start with "UC"; the page type
+  /// is checked too so album/playlist links are ignored.
+  String? _artistBrowseIdOf(dynamic run) {
+    final id =
+        _nav<String>(run, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+    if (id == null || id.isEmpty) return null;
+    final pageType = run is Map
+        ? _pageTypeOfBrowseEndpoint(run['navigationEndpoint'])
+        : null;
+    if (pageType == 'MUSIC_PAGE_TYPE_ARTIST') return id;
+    if (pageType != null) return null; // some other browse target
+    return id.startsWith('UC') ? id : null;
+  }
+
+  /// Normalizes an artist string for *comparison only* (case/punctuation
+  /// insensitive), so "A & B" and "A&B" compare equal.
+  String _normalizeArtistForCompare(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  /// Builds per-artist references from a song row's subtitle runs.
+  ///
+  /// Only runs that carry an artist browse id are treated as artist
+  /// boundaries. When several such runs together reproduce [displayArtist]
+  /// (ignoring separators) they are returned as separate references, so a
+  /// collaboration renders as independent links. Otherwise a single reference
+  /// is returned — keeping names like "Simon & Garfunkel" intact instead of
+  /// splitting them on "&".
+  List<ArtistRef> _artistRefsFromRuns(dynamic runs, String displayArtist) {
+    final display = displayArtist.trim();
+    if (runs is! List || runs.isEmpty) return const [];
+
+    final found = <ArtistRef>[];
+    for (final run in runs) {
+      if (run is! Map) continue;
+      final text = run['text'];
+      if (text is! String) continue;
+      final name = text.trim();
+      if (name.isEmpty || name == '•') continue;
+      if (_contentTypeTokens.contains(name.toLowerCase())) continue;
+      final id = _artistBrowseIdOf(run);
+      if (id != null) found.add(ArtistRef(name: name, browseId: id));
+    }
+
+    if (found.isEmpty || display.isEmpty) return const [];
+    if (found.length == 1) {
+      return [ArtistRef(name: display, browseId: found.first.browseId)];
+    }
+    // Several linked artists: trust them only if together they spell out the
+    // display string. Guards against a collaboration where only one artist was
+    // linked, which would otherwise drop the other name from the UI.
+    final joined = _normalizeArtistForCompare(found.map((a) => a.name).join());
+    if (joined == _normalizeArtistForCompare(display)) return found;
+    return [ArtistRef(name: display, browseId: found.first.browseId)];
+  }
+
+  /// Splits a subtitle's runs into segments, concatenating the runs within a
+  /// segment. Blank runs act as separators (the "•" bullet is drawn as a
+  /// separate element, not part of the runs), so a multi-run collaboration like
+  /// "Drake & Future" stays one segment.
+  List<String> _subtitleSegments(dynamic runs) {
+    if (runs is! List) return const [];
+    final segments = <String>[];
+    final buffer = StringBuffer();
+    for (final run in runs) {
+      if (run is! Map) continue;
+      final text = run['text'];
+      if (text is! String) continue;
+      final trimmed = text.trim();
+      if (trimmed.isEmpty || trimmed == '•') {
+        final seg = buffer.toString().trim();
+        if (seg.isNotEmpty) segments.add(seg);
+        buffer.clear();
+        continue;
+      }
+      buffer.write(text);
+    }
+    final tail = buffer.toString().trim();
+    if (tail.isNotEmpty) segments.add(tail);
+    return segments;
+  }
+
+  /// Index of the first segment that is not a content-type token
+  /// ("Song"/"Video"/"Album"/…), i.e. where the artist actually starts.
+  int _artistSegmentIndex(List<String> segments) {
+    var idx = 0;
+    while (idx < segments.length &&
+        _contentTypeTokens.contains(segments[idx].toLowerCase())) {
+      idx++;
+    }
+    return idx;
+  }
+
+  /// True when a subtitle segment is really a duration or a play-count label
+  /// rather than an artist name (some song rows omit the artist entirely).
+  bool _looksLikeNonArtist(String value) =>
+      RegExp(r'^\d+:\d+$').hasMatch(value) ||
+      RegExp(r'\b(views|plays|audience|subscribers)\b', caseSensitive: false)
+          .hasMatch(value);
+
+  /// Artist display name from a subtitle/byline text object, skipping a leading
+  /// content-type token and rejecting duration/play-count labels.
+  String _artistFromText(dynamic textObj) {
+    final runs = textObj is Map ? textObj['runs'] : null;
+    final segments = _subtitleSegments(runs);
+    if (segments.isEmpty) {
+      final raw = _runs(textObj);
+      return _looksLikeNonArtist(raw) ? '' : raw;
+    }
+    final idx = _artistSegmentIndex(segments);
+    final artist = idx < segments.length ? segments[idx] : '';
+    return _looksLikeNonArtist(artist) ? '' : artist;
+  }
+
+  /// Per-artist references for a subtitle/byline text object.
+  List<ArtistRef> _artistRefsFromText(dynamic textObj) {
+    final runs = textObj is Map ? textObj['runs'] : null;
+    return _artistRefsFromRuns(runs, _artistFromText(textObj));
+  }
+
   Duration _parseDuration(String? text) {
     if (text == null || text.isEmpty) return Duration.zero;
     try {
@@ -551,6 +685,19 @@ class YtMusicService {
   }
 
   // ── Renderer parsers ───────────────────────────────────────────────────────
+
+  /// Content-type words that mixed search rows prepend to a row's subtitle
+  /// (e.g. "Song • Taylor Swift"). Skipped when extracting the artist name.
+  static const Set<String> _contentTypeTokens = {
+    'song',
+    'video',
+    'single',
+    'ep',
+    'album',
+    'artist',
+    'episode',
+    'playlist',
+  };
 
   /// Parse a `musicResponsiveListItemRenderer` into a [YtSong].
   YtSong? _parseSongFromResponsive(Map<String, dynamic> r) {
@@ -602,18 +749,13 @@ class YtMusicService {
       String durationText = '';
 
       if (subtitleRuns is List) {
-        final texts = <String>[];
-        for (final run in subtitleRuns) {
-          if (run is Map) {
-            final text = run['text'];
-            if (text is String &&
-                text.trim().isNotEmpty &&
-                text.trim() != '•') {
-              texts.add(text.trim());
-            }
-          }
-        }
-        if (texts.isNotEmpty) artist = texts[0];
+        // Segments keep every run inside an artist, so a multi-run
+        // collaboration ("Drake & Future") is captured in full.
+        final segments = _subtitleSegments(subtitleRuns);
+        final idx = _artistSegmentIndex(segments);
+        if (idx < segments.length) artist = segments[idx];
+        if (_looksLikeNonArtist(artist)) artist = '';
+
         final thirdCol = _nav<Map>(r, [
           'flexColumns',
           2,
@@ -621,11 +763,13 @@ class YtMusicService {
           'text'
         ]);
         durationText = _runs(thirdCol);
-        if (texts.length >= 2 &&
-            !RegExp(r'^\d+:\d+').hasMatch(texts[1])) {
-          album = texts[1];
+        if (idx + 1 < segments.length &&
+            !RegExp(r'^\d+:\d+').hasMatch(segments[idx + 1])) {
+          album = segments[idx + 1];
         }
       }
+
+      final artistRefs = _artistRefsFromRuns(subtitleRuns, artist);
 
       final thumbWrapper = r['thumbnail'];
       var coverUrl = _thumbFromWrapper(thumbWrapper);
@@ -640,9 +784,103 @@ class YtMusicService {
         album: album,
         coverUrl: coverUrl,
         duration: duration,
+        artistRefs: artistRefs,
       );
     } catch (e) {
       debugPrint('[YtMusicService] _parseSongFromResponsive error: $e');
+      return null;
+    }
+  }
+
+  /// Parse a `musicResponsiveListItemRenderer` into a [YtArtist].
+  /// Used by mixed search results, where artists arrive as responsive rows.
+  YtArtist? _parseArtistFromResponsive(Map<String, dynamic> r) {
+    try {
+      final browseId = _nav<String>(
+          r, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+      if (browseId == null || browseId.isEmpty) return null;
+
+      final title = _runs(_nav<Map>(r, [
+        'flexColumns',
+        0,
+        'musicResponsiveListItemFlexColumnRenderer',
+        'text'
+      ]));
+      if (title.isEmpty) return null;
+
+      final pictureUrl = _thumbFromWrapper(r['thumbnail']);
+      return YtArtist(browseId: browseId, name: title, pictureUrl: pictureUrl);
+    } catch (e) {
+      debugPrint('[YtMusicService] _parseArtistFromResponsive error: $e');
+      return null;
+    }
+  }
+
+  /// Parse a `musicResponsiveListItemRenderer` into a [YtAlbum].
+  /// Used by mixed search results, where albums arrive as responsive rows.
+  YtAlbum? _parseAlbumFromResponsive(Map<String, dynamic> r) {
+    try {
+      final browseId = _nav<String>(
+          r, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+      if (browseId == null || browseId.isEmpty) return null;
+
+      final title = _runs(_nav<Map>(r, [
+        'flexColumns',
+        0,
+        'musicResponsiveListItemFlexColumnRenderer',
+        'text'
+      ]));
+      if (title.isEmpty) return null;
+
+      final subtitleRuns = _nav<Map>(r, [
+        'flexColumns',
+        1,
+        'musicResponsiveListItemFlexColumnRenderer',
+        'text'
+      ])?['runs'];
+
+      String artist = '';
+      int? year;
+      YtAlbumType type = YtAlbumType.unknown;
+
+      if (subtitleRuns is List) {
+        for (final run in subtitleRuns) {
+          if (run is! Map) continue;
+          final text = run['text'];
+          if (text is! String) continue;
+          final trimmed = text.trim();
+          if (trimmed.isEmpty || trimmed == '•') continue;
+          final parsedYear = int.tryParse(trimmed);
+          if (parsedYear != null && parsedYear > 1900 && parsedYear < 2200) {
+            year = parsedYear;
+            continue;
+          }
+          switch (trimmed.toLowerCase()) {
+            case 'album':
+              type = YtAlbumType.album;
+              continue;
+            case 'single':
+              type = YtAlbumType.single;
+              continue;
+            case 'ep':
+              type = YtAlbumType.ep;
+              continue;
+          }
+          if (artist.isEmpty) artist = trimmed;
+        }
+      }
+
+      final coverUrl = _thumbFromWrapper(r['thumbnail']);
+      return YtAlbum(
+        browseId: browseId,
+        title: title,
+        artist: artist,
+        coverUrl: coverUrl,
+        year: year,
+        type: type,
+      );
+    } catch (e) {
+      debugPrint('[YtMusicService] _parseAlbumFromResponsive error: $e');
       return null;
     }
   }
@@ -669,11 +907,18 @@ class YtMusicService {
       if (title.isEmpty) return null;
 
       final subtitleObj = r['subtitle'];
-      final subtitleText = _runs(subtitleObj);
-      String artist = subtitleText;
-      if (subtitleText.contains(' • ')) {
-        artist = subtitleText.split(' • ').last.trim();
+      final subtitleRuns = subtitleObj is Map ? subtitleObj['runs'] : null;
+      final segments = _subtitleSegments(subtitleRuns);
+      String artist;
+      if (segments.isEmpty) {
+        artist = _runs(subtitleObj);
+      } else {
+        final idx = _artistSegmentIndex(segments);
+        artist = idx < segments.length ? segments[idx] : segments.last;
       }
+      if (_looksLikeNonArtist(artist)) artist = '';
+
+      final artistRefs = _artistRefsFromRuns(subtitleRuns, artist);
 
       final thumbWrapper = r['thumbnailRenderer'] ?? r['thumbnail'];
       var coverUrl = _thumbFromWrapper(thumbWrapper);
@@ -686,6 +931,7 @@ class YtMusicService {
         album: null,
         coverUrl: coverUrl,
         duration: Duration.zero,
+        artistRefs: artistRefs,
       );
     } catch (e) {
       debugPrint('[YtMusicService] _parseSongFromTwoRow error: $e');
@@ -820,6 +1066,40 @@ class YtMusicService {
   }
 
   // ── Shelf / section parsing ────────────────────────────────────────────────
+
+  /// Parses every `musicTwoRowItemRenderer` in a carousel shelf into a
+  /// [YtAlbum]. Shared by the artist page and "Albums For You".
+  List<YtAlbum> _parseAlbumShelf(Map carousel) {
+    final result = <YtAlbum>[];
+    final shelfContents = carousel['contents'];
+    if (shelfContents is! List) return result;
+    for (final r in shelfContents) {
+      if (r is! Map) continue;
+      final twoRow = r['musicTwoRowItemRenderer'];
+      if (twoRow is! Map) continue;
+      final album =
+          _parseAlbumFromTwoRow(Map<String, dynamic>.from(twoRow));
+      if (album != null && album.isValid) result.add(album);
+    }
+    return result;
+  }
+
+  /// Parses every `musicTwoRowItemRenderer` in a carousel shelf into a
+  /// [YtArtist]. Used for "Fans might also like" rows.
+  List<YtArtist> _parseArtistShelf(Map carousel) {
+    final result = <YtArtist>[];
+    final shelfContents = carousel['contents'];
+    if (shelfContents is! List) return result;
+    for (final r in shelfContents) {
+      if (r is! Map) continue;
+      final twoRow = r['musicTwoRowItemRenderer'];
+      if (twoRow is! Map) continue;
+      final artist =
+          _parseArtistFromTwoRow(Map<String, dynamic>.from(twoRow));
+      if (artist != null && artist.isValid) result.add(artist);
+    }
+    return result;
+  }
 
   _ShelfType _detectShelfType(List<dynamic> items) {
     for (final item in items) {
@@ -995,11 +1275,7 @@ class YtMusicService {
         if (headerVideoId != null && headerVideoId.isNotEmpty) {
           final headerTitle = _runs(cardShelf['title']);
           final subtitleObj = cardShelf['subtitle'];
-          final subtitleText = _runs(subtitleObj);
-          String artist = subtitleText;
-          if (subtitleText.contains(' • ')) {
-            artist = subtitleText.split(' • ').last.trim();
-          }
+          final artist = _artistFromText(subtitleObj);
           final thumbWrapper =
               cardShelf['thumbnail'] ?? cardShelf['thumbnailRenderer'];
           final coverUrl = _thumbFromWrapper(thumbWrapper);
@@ -1009,6 +1285,7 @@ class YtMusicService {
             artist: artist,
             coverUrl: coverUrl,
             duration: Duration.zero,
+            artistRefs: _artistRefsFromText(subtitleObj),
           );
           if (song.isValid && _songPassesFilter(song)) songs.add(song);
         }
@@ -1379,6 +1656,193 @@ class YtMusicService {
     }
   }
 
+  /// Searches YouTube Music for songs, artists and albums in one request.
+  ///
+  /// Results are keyed by the normalised query. Used by the search screens so
+  /// artists and albums can be discovered, not just songs.
+  Future<YtSearchResults> searchAll(String query) {
+    if (query.trim().isEmpty) {
+      return Future.value(const YtSearchResults());
+    }
+    return _swr(
+      searchAllKey(query),
+      () => _fetchSearchAll(query),
+      encode: (results) => results.toJson(),
+      decode: ytSearchResultsFrom,
+    );
+  }
+
+  /// Network half of [searchAll].
+  Future<YtSearchResults> _fetchSearchAll(String query) async {
+    try {
+      debugPrint('[YtMusicService] searchAll: "$query"');
+      // No `params` filter → mixed results (top result + songs/albums/artists).
+      final body = await _post('search', {'query': query});
+      if (body == null) return const YtSearchResults();
+
+      final tabs = _nav<List>(
+          body, ['contents', 'tabbedSearchResultsRenderer', 'tabs']);
+      if (tabs == null || tabs.isEmpty) return const YtSearchResults();
+
+      final tab = tabs[0];
+      if (tab is! Map) return const YtSearchResults();
+      final sectionContents = _nav<List>(
+          tab, ['tabRenderer', 'content', 'sectionListRenderer', 'contents']);
+      if (sectionContents == null) return const YtSearchResults();
+
+      final songs = <YtSong>[];
+      final artists = <YtArtist>[];
+      final albums = <YtAlbum>[];
+
+      void addSong(YtSong? s) {
+        if (s != null && s.isValid && _songPassesFilter(s)) {
+          if (!songs.any((e) => e.videoId == s.videoId)) songs.add(s);
+        }
+      }
+
+      void addArtist(YtArtist? a) {
+        if (a != null && a.isValid) {
+          if (!artists.any((e) => e.browseId == a.browseId)) artists.add(a);
+        }
+      }
+
+      void addAlbum(YtAlbum? a) {
+        if (a != null && a.isValid) {
+          if (!albums.any((e) => e.browseId == a.browseId)) albums.add(a);
+        }
+      }
+
+      for (final item in sectionContents) {
+        if (item is! Map) continue;
+
+        // ── Top result card ──────────────────────────────────────────────
+        final card = item['musicCardShelfRenderer'] as Map?;
+        if (card != null) {
+          final endpoint =
+              _nav<Map>(card, ['title', 'runs', 0, 'navigationEndpoint']);
+          final cardTitle = _runs(card['title']);
+          final thumb = card['thumbnail'] ?? card['thumbnailRenderer'];
+          if (endpoint != null) {
+            final videoId =
+                _nav<String>(endpoint, ['watchEndpoint', 'videoId']);
+            final browseId =
+                _nav<String>(endpoint, ['browseEndpoint', 'browseId']);
+            final pageType = _nav<String>(endpoint, [
+              'browseEndpoint',
+              'browseEndpointContextSupportedConfigs',
+              'browseEndpointContextMusicConfig',
+              'pageType'
+            ]);
+            if (videoId != null && videoId.isNotEmpty) {
+              addSong(YtSong(
+                videoId: videoId,
+                title: cardTitle,
+                artist: _artistFromText(card['subtitle']),
+                coverUrl: _thumbFromWrapper(thumb),
+                duration: Duration.zero,
+                artistRefs: _artistRefsFromText(card['subtitle']),
+              ));
+            } else if (browseId != null && browseId.isNotEmpty) {
+              if (pageType == 'MUSIC_PAGE_TYPE_ARTIST') {
+                addArtist(YtArtist(
+                  browseId: browseId,
+                  name: cardTitle,
+                  pictureUrl: _thumbFromWrapper(thumb),
+                ));
+              } else {
+                addAlbum(YtAlbum(
+                  browseId: browseId,
+                  title: cardTitle,
+                  artist: _runs(card['subtitle']),
+                  coverUrl: _thumbFromWrapper(thumb),
+                ));
+              }
+            }
+          }
+        }
+
+        // ── Result rows ──────────────────────────────────────────────────
+        // The mixed "all" search wraps each row in an `itemSectionRenderer`;
+        // grouped layouts nest a `musicShelfRenderer` instead.
+        final section = item['itemSectionRenderer'];
+        final rows = (section is Map && section['contents'] is List)
+            ? section['contents'] as List
+            : <dynamic>[item];
+
+        for (final row in rows) {
+          if (row is! Map) continue;
+
+          // Grouped shelf (Songs / Albums / Artists) — title tells us the type.
+          final shelf = row['musicShelfRenderer'];
+          if (shelf is Map) {
+            final title = _runs(_nav<Map>(shelf, ['title'])).toLowerCase();
+            final shelfContents = shelf['contents'];
+            if (shelfContents is! List) continue;
+            for (final r in shelfContents) {
+              if (r is! Map) continue;
+              final responsive = r['musicResponsiveListItemRenderer'];
+              if (responsive is Map) {
+                final map = Map<String, dynamic>.from(responsive);
+                if (title.contains('artist')) {
+                  addArtist(_parseArtistFromResponsive(map));
+                } else if (title.contains('album')) {
+                  addAlbum(_parseAlbumFromResponsive(map));
+                } else {
+                  addSong(_parseSongFromResponsive(map));
+                }
+              }
+              final twoRow = r['musicTwoRowItemRenderer'];
+              if (twoRow is Map) {
+                final map = Map<String, dynamic>.from(twoRow);
+                if (title.contains('artist')) {
+                  addArtist(_parseArtistFromTwoRow(map));
+                } else {
+                  addAlbum(_parseAlbumFromTwoRow(map));
+                }
+              }
+            }
+            continue;
+          }
+
+          // Two-row item (album / artist card).
+          final twoRow = row['musicTwoRowItemRenderer'];
+          if (twoRow is Map) {
+            final map = Map<String, dynamic>.from(twoRow);
+            if (_pageTypeOfBrowseEndpoint(map['navigationEndpoint']) ==
+                'MUSIC_PAGE_TYPE_ARTIST') {
+              addArtist(_parseArtistFromTwoRow(map));
+            } else {
+              addAlbum(_parseAlbumFromTwoRow(map));
+            }
+            continue;
+          }
+
+          // Responsive row: classify by page type, otherwise it's a song.
+          final responsive = row['musicResponsiveListItemRenderer'];
+          if (responsive is! Map) continue;
+          final map = Map<String, dynamic>.from(responsive);
+          final pageType = _pageTypeOfBrowseEndpoint(map['navigationEndpoint']);
+          if (pageType == 'MUSIC_PAGE_TYPE_ARTIST') {
+            addArtist(_parseArtistFromResponsive(map));
+          } else if (pageType == 'MUSIC_PAGE_TYPE_ALBUM') {
+            addAlbum(_parseAlbumFromResponsive(map));
+          } else if (pageType == 'MUSIC_PAGE_TYPE_PLAYLIST') {
+            // Playlists are not surfaced yet.
+          } else {
+            addSong(_parseSongFromResponsive(map));
+          }
+        }
+      }
+
+      debugPrint('[YtMusicService] searchAll "$query": ${songs.length} songs, '
+          '${artists.length} artists, ${albums.length} albums');
+      return YtSearchResults(songs: songs, artists: artists, albums: albums);
+    } catch (e) {
+      debugPrint('[YtMusicService] searchAll error: $e');
+      return const YtSearchResults();
+    }
+  }
+
   /// Returns the top songs for an artist identified by [artistBrowseId].
   Future<List<YtSong>> getArtistTopSongs(String artistBrowseId) {
     if (artistBrowseId.isEmpty) return Future.value(const <YtSong>[]);
@@ -1512,6 +1976,145 @@ class YtMusicService {
     }
   }
 
+  /// Fetches an artist's full page: header (name, image, description,
+  /// subscribers) plus top songs, albums, singles and related artists.
+  ///
+  /// Stale-while-revalidate; listen on `revisions(artistPageKey(id))` for the
+  /// background refresh. A genuinely empty page throws, so a failed fetch
+  /// surfaces an error instead of caching a blank artist until restart.
+  Future<YtArtistData> getArtist(String browseId) {
+    if (browseId.isEmpty) {
+      return Future.value(
+          const YtArtistData(browseId: '', name: '', pictureUrl: ''));
+    }
+    return _swr(
+      artistPageKey(browseId),
+      () => _fetchArtist(browseId),
+      encode: (data) => data.toJson(),
+      decode: ytArtistDataFrom,
+    );
+  }
+
+  /// Network half of [getArtist].
+  Future<YtArtistData> _fetchArtist(String browseId) async {
+    final body = await _post('browse', {'browseId': browseId});
+    if (body == null) throw Exception('No response for $browseId');
+
+    // ── Header metadata ────────────────────────────────────────────────────
+    String name = '';
+    String pictureUrl = '';
+    String description = '';
+    String subscribers = '';
+
+    final header =
+        _nav<Map>(body, ['header', 'musicImmersiveHeaderRenderer']) ??
+            _nav<Map>(body, ['header', 'musicVisualHeaderRenderer']) ??
+            _nav<Map>(body, ['header', 'musicDetailHeaderRenderer']);
+    if (header != null) {
+      name = _runs(header['title']);
+      // Artist headers expose the audience via `monthlyListenerCount`; older
+      // layouts use `subtitle`.
+      subscribers = _runs(header['monthlyListenerCount']);
+      if (subscribers.isEmpty) subscribers = _runs(header['subtitle']);
+      description = _runs(header['description']);
+      pictureUrl = _thumbFromWrapper(header['thumbnail']);
+    }
+
+    final contents = _sectionContentsFromBrowse(body) ?? const [];
+
+    final topSongs = <YtSong>[];
+    final albums = <YtAlbum>[];
+    final singles = <YtAlbum>[];
+    final relatedArtists = <YtArtist>[];
+
+    for (final item in contents) {
+      if (item is! Map) continue;
+
+      // ── Description shelf (bio + subscriber footer) ──────────────────────
+      final descShelf = item['musicDescriptionShelfRenderer'] as Map?;
+      if (descShelf != null) {
+        final descText = _runs(descShelf['description']);
+        if (descText.isNotEmpty) description = descText;
+        final footer = _runs(descShelf['footer']);
+        if (footer.isNotEmpty) subscribers = footer;
+        continue;
+      }
+
+      // ── Top songs shelf ──────────────────────────────────────────────────
+      final shelf = item['musicShelfRenderer'] as Map?;
+      if (shelf != null) {
+        if (topSongs.isNotEmpty) continue;
+        final titleText = _runs(_nav<Map>(shelf, ['title'])).toLowerCase();
+        final isSongs = titleText.isEmpty ||
+            titleText.contains('song') ||
+            titleText.contains('video');
+        if (!isSongs) continue;
+        final shelfContents = shelf['contents'];
+        if (shelfContents is! List) continue;
+        for (final r in shelfContents) {
+          if (r is! Map) continue;
+          final responsive = r['musicResponsiveListItemRenderer'];
+          if (responsive is Map) {
+            final song = _parseSongFromResponsive(
+                Map<String, dynamic>.from(responsive));
+            if (song != null && song.isValid && _songPassesFilter(song)) {
+              topSongs.add(song);
+            }
+          }
+        }
+        continue;
+      }
+
+      // ── Carousel shelves (albums / singles / related artists) ────────────
+      final carousel = item['musicCarouselShelfRenderer'] as Map? ??
+          item['musicImmersiveCarouselShelfRenderer'] as Map?;
+      if (carousel != null) {
+        final shelfTitle = _runs(_nav<Map>(carousel, [
+          'header',
+          'musicCarouselShelfBasicHeaderRenderer',
+          'title'
+        ])).toLowerCase();
+
+        if (shelfTitle.contains('single')) {
+          singles.addAll(_parseAlbumShelf(carousel));
+        } else if (shelfTitle.contains('album') ||
+            shelfTitle.contains('release')) {
+          albums.addAll(_parseAlbumShelf(carousel));
+        } else if (shelfTitle.contains('fans might also like') ||
+            shelfTitle.contains('related') ||
+            shelfTitle.contains('similar') ||
+            shelfTitle.contains('you might also like')) {
+          relatedArtists.addAll(_parseArtistShelf(carousel));
+        }
+      }
+    }
+
+    if (name.isEmpty &&
+        topSongs.isEmpty &&
+        albums.isEmpty &&
+        singles.isEmpty &&
+        relatedArtists.isEmpty) {
+      throw Exception('Artist page $browseId returned no data');
+    }
+
+    final result = YtArtistData(
+      browseId: browseId,
+      name: name,
+      pictureUrl: pictureUrl,
+      description: description,
+      subscribers: subscribers,
+      topSongs: topSongs,
+      albums: albums,
+      singles: singles,
+      relatedArtists: relatedArtists,
+    );
+
+    debugPrint('[YtMusicService] getArtist $browseId: "$name" — '
+        '${topSongs.length} songs, ${albums.length} albums, '
+        '${singles.length} singles, ${relatedArtists.length} related');
+    return result;
+  }
+
   /// Returns the "Up Next" queue for a given [videoId].
   Future<List<YtSong>> getUpNext(String videoId) {
     if (videoId.isEmpty) return Future.value(const <YtSong>[]);
@@ -1594,7 +2197,7 @@ class YtMusicService {
         if (title.isEmpty) continue;
 
         final shortByline = panelVideo['shortBylineText'];
-        final artist = _runs(shortByline);
+        final artist = _artistFromText(shortByline);
 
         final thumbWrapper = panelVideo['thumbnail'];
         final rawCoverUrl = _thumbFromWrapper(thumbWrapper);
@@ -1611,6 +2214,7 @@ class YtMusicService {
           artist: artist,
           coverUrl: coverUrl,
           duration: duration,
+          artistRefs: _artistRefsFromText(shortByline),
         );
 
         if (song.isValid && _songPassesFilter(song)) {
@@ -1702,16 +2306,7 @@ class YtMusicService {
               if (!shelfTitle.contains('album') &&
                   !shelfTitle.contains('single') &&
                   !shelfTitle.contains('release')) { continue; }
-              final shelfContents = carousel['contents'];
-              if (shelfContents is! List) continue;
-              for (final r in shelfContents) {
-                if (r is! Map) continue;
-                final twoRow = r['musicTwoRowItemRenderer'];
-                if (twoRow is! Map) continue;
-                final album = _parseAlbumFromTwoRow(
-                    Map<String, dynamic>.from(twoRow));
-                if (album != null) result.add(album);
-              }
+              result.addAll(_parseAlbumShelf(carousel));
             }
             return result;
           } catch (e) {
@@ -1768,6 +2363,7 @@ class YtMusicService {
   static Map<String, dynamic> _encodeAlbumTracks(AlbumTracksData data) => {
         'title': data.title,
         'artist': data.artist,
+        if (data.artistBrowseId != null) 'artistId': data.artistBrowseId,
         'coverUrl': data.coverUrl,
         'year': data.year,
         'tracks': YtSong.encodeList(data.tracks),
@@ -1779,6 +2375,7 @@ class YtMusicService {
     return AlbumTracksData(
       title: read('title'),
       artist: read('artist'),
+      artistBrowseId: read('artistId').isEmpty ? null : read('artistId'),
       coverUrl: read('coverUrl'),
       year: read('year'),
       tracks: ytSongListFrom(map['tracks']),
@@ -1787,77 +2384,122 @@ class YtMusicService {
 
   /// Network half of [getAlbumTracks].
   Future<AlbumTracksData> _fetchAlbumTracks(String browseId) async {
-
+    debugPrint('[YtMusicService] getAlbumTracks: browseId=$browseId');
     final body = await _post('browse', {'browseId': browseId});
     if (body == null) throw Exception('No response for $browseId');
 
     // ── Header metadata ────────────────────────────────────────────────────
     String title = '';
     String artist = '';
+    String? artistBrowseId;
     String coverUrl = '';
     String year = '';
 
-    final header = _nav<Map>(body, ['header', 'musicImmersiveHeaderRenderer']) ??
-        _nav<Map>(body, ['header', 'musicDetailHeaderRenderer']);
+    final header = _albumHeaderFromBrowse(body);
     if (header != null) {
       title = _runs(header['title']);
-      artist = _runs(header['subtitle']);
-      final subParts = artist.split(' • ');
-      for (final part in subParts) {
-        final y = int.tryParse(part.trim());
-        if (y != null && y > 1900 && y < 2200) {
-          year = part.trim();
-          break;
+
+      // Album pages carry the artist in `straplineTextOne` (with its browse
+      // endpoint); older/immersive layouts put it in `subtitle`.
+      artist = _runs(header['straplineTextOne']);
+      artistBrowseId = _nav<String>(header, [
+        'straplineTextOne',
+        'runs',
+        0,
+        'navigationEndpoint',
+        'browseEndpoint',
+        'browseId'
+      ]);
+      if (artist.isEmpty) artist = _runs(header['subtitle']);
+
+      final subtitleRuns =
+          header['subtitle'] is Map ? (header['subtitle'] as Map)['runs'] : null;
+      if (subtitleRuns is List) {
+        for (final run in subtitleRuns) {
+          if (run is! Map) continue;
+          final text = (run['text'] as String?)?.trim() ?? '';
+          final parsed = int.tryParse(text);
+          if (parsed != null && parsed > 1900 && parsed < 2200) {
+            year = text;
+            break;
+          }
+        }
+        if (artistBrowseId == null) {
+          for (final run in subtitleRuns) {
+            if (run is! Map) continue;
+            final bid = _nav<String>(
+                run, ['navigationEndpoint', 'browseEndpoint', 'browseId']);
+            if (bid != null && bid.startsWith('UC')) {
+              artistBrowseId = bid;
+              break;
+            }
+          }
         }
       }
-      final thumbList = _nav<List>(header, [
-            'thumbnail', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails'
-          ]) ??
-          _nav<List>(header, ['thumbnail', 'thumbnails']) ??
-          _nav<List>(header, [
-            'thumbnailRenderer', 'musicThumbnailRenderer', 'thumbnail', 'thumbnails'
-          ]);
-      if (thumbList != null) {
-        coverUrl = _thumb(thumbList);
-      }
+
+      coverUrl = _thumbFromWrapper(header['thumbnail']);
     }
 
     // ── Track list ─────────────────────────────────────────────────────────
-    final contents = _sectionContentsFromBrowse(body);
-    final tracks = <YtSong>[];
+    // The two-column album layout keeps the track list in `secondaryContents`;
+    // other layouts put it directly in the tab's section list.
+    final shelves = <Map>[];
+    final secondary = _nav<List>(body, [
+      'contents',
+      'twoColumnBrowseResultsRenderer',
+      'secondaryContents',
+      'sectionListRenderer',
+      'contents'
+    ]);
+    if (secondary != null) shelves.addAll(secondary.whereType<Map>());
+    final main = _sectionContentsFromBrowse(body);
+    if (main != null) shelves.addAll(main.whereType<Map>());
 
-    if (contents != null) {
-      for (final item in contents) {
-        if (item is! Map) continue;
-        final shelf = item['musicShelfRenderer'] as Map?;
-        if (shelf == null) continue;
-        final shelfContents = shelf['contents'];
-        if (shelfContents is! List) continue;
-        for (final r in shelfContents) {
-          if (r is! Map) continue;
-          final responsive = r['musicResponsiveListItemRenderer'];
-          if (responsive is! Map) continue;
-          final song = _parseSongFromResponsive(
-              Map<String, dynamic>.from(responsive));
-          if (song != null && song.isValid) {
-            final cover = song.coverUrl.isNotEmpty ? song.coverUrl : coverUrl;
-            tracks.add(YtSong(
-              videoId: song.videoId,
-              title: song.title,
-              artist: song.artist.isNotEmpty ? song.artist : artist,
-              album: title,
-              coverUrl: cover,
-              duration: song.duration,
-            ));
-          }
+    final tracks = <YtSong>[];
+    final seenVideoIds = <String>{};
+    for (final item in shelves) {
+      final shelf = item['musicShelfRenderer'];
+      if (shelf is! Map) continue;
+      final shelfContents = shelf['contents'];
+      if (shelfContents is! List) continue;
+      for (final r in shelfContents) {
+        if (r is! Map) continue;
+        final responsive = r['musicResponsiveListItemRenderer'];
+        if (responsive is! Map) continue;
+        final song = _parseSongFromResponsive(
+            Map<String, dynamic>.from(responsive));
+        if (song == null || !song.isValid) continue;
+        if (!seenVideoIds.add(song.videoId)) continue;
+
+        // Album rows keep the duration in `fixedColumns`, which the shared
+        // parser does not read.
+        var duration = song.duration;
+        if (duration == Duration.zero) {
+          final fixed = _runs(_nav<Map>(responsive, [
+            'fixedColumns',
+            0,
+            'musicResponsiveListItemFixedColumnRenderer',
+            'text'
+          ]));
+          duration = _parseDuration(fixed.isNotEmpty ? fixed : null);
         }
-        if (tracks.isNotEmpty) break;
+
+        tracks.add(YtSong(
+          videoId: song.videoId,
+          title: song.title,
+          artist: song.artist.isNotEmpty ? song.artist : artist,
+          album: title,
+          coverUrl: song.coverUrl.isNotEmpty ? song.coverUrl : coverUrl,
+          duration: duration,
+          artistRefs: song.artistRefs,
+        ));
       }
     }
 
     final result = AlbumTracksData(
       title: title,
       artist: artist,
+      artistBrowseId: artistBrowseId,
       coverUrl: coverUrl,
       year: year,
       tracks: tracks,
@@ -1866,6 +2508,40 @@ class YtMusicService {
     debugPrint('[YtMusicService] getAlbumTracks $browseId: '
         '"$title" by "$artist" — ${tracks.length} tracks');
     return result;
+  }
+
+  /// Locates an album header across the layouts YouTube Music serves:
+  /// a top-level immersive/detail header, or — for the current two-column
+  /// album page — a `musicResponsiveHeaderRenderer` that is the first item of
+  /// the tab's section list.
+  Map? _albumHeaderFromBrowse(Map<String, dynamic> body) {
+    final immersive = _nav<Map>(body, ['header', 'musicImmersiveHeaderRenderer']);
+    if (immersive != null) return immersive;
+    final detail = _nav<Map>(body, ['header', 'musicDetailHeaderRenderer']);
+    if (detail != null) return detail;
+
+    for (final root in const [
+      'twoColumnBrowseResultsRenderer',
+      'singleColumnBrowseResultsRenderer',
+    ]) {
+      final contents = _nav<List>(body, [
+        'contents',
+        root,
+        'tabs',
+        0,
+        'tabRenderer',
+        'content',
+        'sectionListRenderer',
+        'contents'
+      ]);
+      if (contents == null) continue;
+      for (final item in contents) {
+        if (item is Map && item['musicResponsiveHeaderRenderer'] is Map) {
+          return item['musicResponsiveHeaderRenderer'] as Map;
+        }
+      }
+    }
+    return null;
   }
 
   /// Drops every cached feed, in memory and on disk, and re-fetches the
@@ -1906,6 +2582,7 @@ enum _ShelfType { song, album, artist, playlist }
 class AlbumTracksData {
   final String title;
   final String artist;
+  final String? artistBrowseId;
   final String coverUrl;
   final String year;
   final List<YtSong> tracks;
@@ -1913,6 +2590,7 @@ class AlbumTracksData {
   const AlbumTracksData({
     required this.title,
     required this.artist,
+    this.artistBrowseId,
     required this.coverUrl,
     required this.year,
     required this.tracks,

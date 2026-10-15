@@ -28,6 +28,7 @@ import '../providers/player_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../widgets/seek_bar.dart';
+import '../widgets/artist_link.dart';
 import '../screens/queue_screen.dart';
 import '../providers/download_provider.dart';
 import '../widgets/add_to_playlist_sheet.dart';
@@ -388,12 +389,17 @@ class _PlayerPage extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      song.channelName,
+                    ArtistNames(
+                      refs: song.artistRefs,
+                      fallbackName: song.channelName,
                       style: const TextStyle(
                           color: Color(0xFFB3B3B3), fontSize: 13),
+                      hoverStyle: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Colors.white),
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

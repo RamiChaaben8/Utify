@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../models/song.dart';
 import 'app_thumbnail.dart';
+import 'artist_link.dart';
 
 class HorizontalSongCard extends StatelessWidget {
   final Song song;
@@ -48,11 +49,16 @@ class HorizontalSongCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              song.channelName,
+            ArtistNames(
+              refs: song.artistRefs,
+              fallbackName: song.channelName,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Color(0xFFB3B3B3), fontSize: 11),
+              hoverStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Colors.white),
             ),
           ],
         ),

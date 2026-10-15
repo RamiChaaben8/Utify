@@ -26,6 +26,7 @@ import '../../providers/guest_session_provider.dart';
 import '../../services/firestore_service.dart';
 import '../home/desktop_home_view.dart';
 import '../home/desktop_yt_album_view.dart';
+import '../home/desktop_yt_artist_view.dart';
 import '../now_playing/desktop_now_playing_panel.dart';
 import '../player/desktop_player_bar.dart';
 import '../player/lyrics_panel.dart';
@@ -69,11 +70,13 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
   static const int _viewFriendProfile = 4;
   static const int _viewYtAlbum = 5;
   static const int _viewDownloads = 6;
+  static const int _viewYtArtist = 7;
 
   final List<int> _history = [_viewHome];
   int _historyIndex = 0;
   Playlist? _viewedPlaylist;
   String? _viewedYtBrowseId;
+  String? _viewedYtArtistId;
 
   /// The friend whose profile [_viewFriendProfile] is showing.
   PublicProfile? _viewedFriendProfile;
@@ -92,14 +95,16 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
 
   void _navigateTo(int view,
       {Playlist? playlist, PublicProfile? friendProfile,
-      String? ytBrowseId}) {
+      String? ytBrowseId, String? ytArtistId}) {
     if (_currentView == view &&
         (view != _viewPlaylist ||
             _isSamePlaylist(_viewedPlaylist, playlist)) &&
         (view != _viewFriendProfile ||
             _viewedFriendProfile?.uid == friendProfile?.uid) &&
         (view != _viewYtAlbum ||
-            _viewedYtBrowseId == ytBrowseId)) {
+            _viewedYtBrowseId == ytBrowseId) &&
+        (view != _viewYtArtist ||
+            _viewedYtArtistId == ytArtistId)) {
       return;
     }
     setState(() {
@@ -114,6 +119,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
       }
       if (view == _viewYtAlbum) {
         _viewedYtBrowseId = ytBrowseId;
+      }
+      if (view == _viewYtArtist) {
+        _viewedYtArtistId = ytArtistId;
       }
     });
   }
@@ -424,6 +432,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
       ref.read(desktopYtBrowseRequestProvider.notifier).state = null;
       _navigateTo(_viewYtAlbum, ytBrowseId: next);
     });
+    ref.listen<String?>(desktopYtArtistRequestProvider, (_, next) {
+      if (next == null || next.isEmpty) return;
+      ref.read(desktopYtArtistRequestProvider.notifier).state = null;
+      _navigateTo(_viewYtArtist, ytArtistId: next);
+    });
     final panelMode = ref.watch(panelModeProvider);
     final guestMode = ref.watch(guestSessionProvider);
 
@@ -701,6 +714,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell>
           return DesktopYtAlbumView(
             key: ValueKey('yt_album_$bid'),
             browseId: bid,
+          );
+        }
+        return const DesktopHomeView(key: ValueKey('home'));
+      case _viewYtArtist:
+        final aid = _viewedYtArtistId;
+        if (aid != null && aid.isNotEmpty) {
+          return DesktopYtArtistView(
+            key: ValueKey('yt_artist_$aid'),
+            browseId: aid,
           );
         }
         return const DesktopHomeView(key: ValueKey('home'));

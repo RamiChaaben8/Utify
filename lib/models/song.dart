@@ -4,6 +4,8 @@
 
 import 'package:hive/hive.dart';
 
+import 'artist_ref.dart';
+
 part 'song.g.dart';
 
 @HiveType(typeId: 0)
@@ -35,6 +37,16 @@ class Song extends HiveObject {
   @HiveField(8)
   final String? localPath; // absolute path to the local file
 
+  /// Credited artist names, in source order. Parallel to [artistBrowseIds].
+  /// Empty for records written before this field existed — use [artistRefs],
+  /// which falls back to a single [channelName] reference.
+  @HiveField(9)
+  final List<String> artistNames;
+
+  /// Browse ids parallel to [artistNames]; "" where the source gave no id.
+  @HiveField(10)
+  final List<String> artistBrowseIds;
+
   Song({
     required this.id,
     required this.title,
@@ -45,13 +57,38 @@ class Song extends HiveObject {
     this.streamUrlFetchedAt,
     this.isLocal = false,
     this.localPath,
+    this.artistNames = const [],
+    this.artistBrowseIds = const [],
   });
+
+  /// Structured artist references for display/linking.
+  ///
+  /// Falls back to a single [channelName] reference when no per-artist data was
+  /// stored (older records, or sources that only carry one string).
+  List<ArtistRef> get artistRefs {
+    if (artistNames.isEmpty) {
+      return channelName.trim().isEmpty
+          ? const []
+          : [ArtistRef(name: channelName)];
+    }
+    return [
+      for (var i = 0; i < artistNames.length; i++)
+        ArtistRef(
+          name: artistNames[i],
+          browseId: i < artistBrowseIds.length && artistBrowseIds[i].isNotEmpty
+              ? artistBrowseIds[i]
+              : null,
+        ),
+    ];
+  }
 
   Song copyWith({
     String? streamUrl,
     DateTime? streamUrlFetchedAt,
     bool? isLocal,
     String? localPath,
+    List<String>? artistNames,
+    List<String>? artistBrowseIds,
   }) {
     return Song(
       id: id,
@@ -63,6 +100,8 @@ class Song extends HiveObject {
       streamUrlFetchedAt: streamUrlFetchedAt ?? this.streamUrlFetchedAt,
       isLocal: isLocal ?? this.isLocal,
       localPath: localPath ?? this.localPath,
+      artistNames: artistNames ?? this.artistNames,
+      artistBrowseIds: artistBrowseIds ?? this.artistBrowseIds,
     );
   }
 

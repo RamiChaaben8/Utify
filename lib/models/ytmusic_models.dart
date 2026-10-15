@@ -8,6 +8,7 @@
 // missing or wrongly-typed field yields a sensible default rather than
 // throwing, so one bad row can never wipe out an entire cached feed.
 
+import 'artist_ref.dart';
 import 'song.dart';
 import '../utils/thumbnail_url.dart';
 
@@ -45,6 +46,23 @@ List<Map<String, dynamic>> _objList(dynamic raw) {
   ];
 }
 
+/// Decodes a cached `ArtistRef` list (each item `{'n': name, 'i': browseId}`).
+List<ArtistRef> _artistRefs(dynamic raw) {
+  if (raw is! List) return const [];
+  final out = <ArtistRef>[];
+  for (final item in raw) {
+    if (item is! Map) continue;
+    final name = item['n'];
+    if (name is! String || name.isEmpty) continue;
+    final id = item['i'];
+    out.add(ArtistRef(
+      name: name,
+      browseId: id is String && id.isNotEmpty ? id : null,
+    ));
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // YtSong
 // ---------------------------------------------------------------------------
@@ -57,6 +75,10 @@ class YtSong {
   final String coverUrl;
   final Duration duration;
 
+  /// Per-artist references (name + browse id) when the source gave us the
+  /// boundaries. Empty when only the joined [artist] string is known.
+  final List<ArtistRef> artistRefs;
+
   const YtSong({
     required this.videoId,
     required this.title,
@@ -64,6 +86,7 @@ class YtSong {
     this.album,
     required this.coverUrl,
     required this.duration,
+    this.artistRefs = const [],
   });
 
   bool get isValid => videoId.isNotEmpty && title.isNotEmpty;
@@ -74,6 +97,8 @@ class YtSong {
         channelName: artist,
         thumbnailUrl: ThumbnailUrl.normalize(coverUrl, videoId: videoId),
         duration: duration,
+        artistNames: [for (final a in artistRefs) a.name],
+        artistBrowseIds: [for (final a in artistRefs) a.browseId ?? ''],
       );
 
   @override
@@ -93,6 +118,11 @@ class YtSong {
         if (album != null) 'b': album,
         'c': coverUrl,
         'd': duration.inMilliseconds,
+        if (artistRefs.isNotEmpty)
+          'r': [
+            for (final a in artistRefs)
+              {'n': a.name, if (a.hasBrowseId) 'i': a.browseId},
+          ],
       };
 
   factory YtSong.fromJson(Map<String, dynamic> json) {
@@ -105,6 +135,7 @@ class YtSong {
       album: _strOrNull(json, 'b'),
       coverUrl: ThumbnailUrl.normalize(rawCover, videoId: vId),
       duration: _duration(json, 'd'),
+      artistRefs: _artistRefs(json['r']),
     );
   }
 
@@ -440,3 +471,126 @@ List<YtAlbum> ytAlbumListFrom(dynamic json) =>
 
 List<YtMoodChip> ytMoodChipListFrom(dynamic json) =>
     YtMoodChip.decodeList(json is Map ? json['items'] : json);
+
+// ---------------------------------------------------------------------------
+// YtArtistData — one artist's full page (header + shelves)
+// ---------------------------------------------------------------------------
+
+class YtArtistData {
+  final String browseId;
+  final String name;
+  final String pictureUrl;
+  final String description;
+  final String subscribers;
+  final List<YtSong> topSongs;
+  final List<YtAlbum> albums;
+  final List<YtAlbum> singles;
+  final List<YtArtist> relatedArtists;
+
+  const YtArtistData({
+    required this.browseId,
+    required this.name,
+    required this.pictureUrl,
+    this.description = '',
+    this.subscribers = '',
+    this.topSongs = const [],
+    this.albums = const [],
+    this.singles = const [],
+    this.relatedArtists = const [],
+  });
+
+  bool get isValid => browseId.isNotEmpty && name.isNotEmpty;
+
+  bool get hasContent =>
+      topSongs.isNotEmpty ||
+      albums.isNotEmpty ||
+      singles.isNotEmpty ||
+      relatedArtists.isNotEmpty;
+
+  @override
+  String toString() =>
+      'YtArtistData(browseId: $browseId, name: $name, '
+      'songs: ${topSongs.length}, albums: ${albums.length}, '
+      'singles: ${singles.length}, related: ${relatedArtists.length})';
+
+  Map<String, dynamic> toJson() => {
+        'id': browseId,
+        'n': name,
+        'p': pictureUrl,
+        if (description.isNotEmpty) 'd': description,
+        if (subscribers.isNotEmpty) 'sub': subscribers,
+        if (topSongs.isNotEmpty) 's': YtSong.encodeList(topSongs),
+        if (albums.isNotEmpty) 'a': YtAlbum.encodeList(albums),
+        if (singles.isNotEmpty) 'si': YtAlbum.encodeList(singles),
+        if (relatedArtists.isNotEmpty) 'r': YtArtist.encodeList(relatedArtists),
+      };
+
+  factory YtArtistData.fromJson(Map<String, dynamic> json) => YtArtistData(
+        browseId: _str(json, 'id'),
+        name: _str(json, 'n'),
+        pictureUrl: ThumbnailUrl.normalize(_str(json, 'p')),
+        description: _str(json, 'd'),
+        subscribers: _str(json, 'sub'),
+        topSongs: YtSong.decodeList(json['s']),
+        albums: YtAlbum.decodeList(json['a']),
+        singles: YtAlbum.decodeList(json['si']),
+        relatedArtists: YtArtist.decodeList(json['r']),
+      );
+
+  static List<Map<String, dynamic>> encodeList(List<YtArtistData> artists) =>
+      [for (final artist in artists) artist.toJson()];
+
+  static List<YtArtistData> decodeList(dynamic raw) => [
+        for (final json in _objList(raw)) YtArtistData.fromJson(json),
+      ];
+}
+
+// ---------------------------------------------------------------------------
+// YtSearchResults — mixed search results (songs + artists + albums)
+// ---------------------------------------------------------------------------
+
+class YtSearchResults {
+  final List<YtSong> songs;
+  final List<YtArtist> artists;
+  final List<YtAlbum> albums;
+
+  const YtSearchResults({
+    this.songs = const [],
+    this.artists = const [],
+    this.albums = const [],
+  });
+
+  bool get isEmpty => songs.isEmpty && artists.isEmpty && albums.isEmpty;
+
+  Map<String, dynamic> toJson() => {
+        if (songs.isNotEmpty) 's': YtSong.encodeList(songs),
+        if (artists.isNotEmpty) 'r': YtArtist.encodeList(artists),
+        if (albums.isNotEmpty) 'a': YtAlbum.encodeList(albums),
+      };
+
+  factory YtSearchResults.fromJson(Map<String, dynamic> json) =>
+      YtSearchResults(
+        songs: YtSong.decodeList(json['s']),
+        artists: YtArtist.decodeList(json['r']),
+        albums: YtAlbum.decodeList(json['a']),
+      );
+
+  static List<Map<String, dynamic>> encodeList(List<YtSearchResults> results) =>
+      [for (final result in results) result.toJson()];
+
+  static List<YtSearchResults> decodeList(dynamic raw) => [
+        for (final json in _objList(raw)) YtSearchResults.fromJson(json),
+      ];
+}
+
+// ---------------------------------------------------------------------------
+// Single-object envelope readers (artist page, mixed search)
+// ---------------------------------------------------------------------------
+
+YtArtistData ytArtistDataFrom(dynamic json) => YtArtistData.fromJson(
+      json is Map ? Map<String, dynamic>.from(json) : const {},
+    );
+
+YtSearchResults ytSearchResultsFrom(dynamic json) => YtSearchResults.fromJson(
+      json is Map ? Map<String, dynamic>.from(json) : const {},
+    );

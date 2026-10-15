@@ -19,6 +19,7 @@ import '../../providers/player_provider.dart';
 import '../../providers/download_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/song_context_menu.dart';
+import '../../widgets/artist_link.dart';
 import '../theme/desktop_theme.dart';
 import '../theme/ui_sizes.dart';
 import '../widgets/invite_collaborator_dialog.dart';
@@ -751,12 +752,17 @@ class _SongRowState extends ConsumerState<_SongRow> {
                           ),
                         ),
                         SizedBox(height: 2),
-                        Text(
-                          widget.song.channelName,
+                        ArtistNames(
+                          refs: widget.song.artistRefs,
+                          fallbackName: widget.song.channelName,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               color: context.appTheme.subtext, fontSize: 12),
+                          hoverStyle: TextStyle(
+                              color: context.appTheme.text,
+                              fontSize: 12,
+                              decoration: TextDecoration.underline,
+                              decorationColor: context.appTheme.text),
                         ),
                       ],
                     ),

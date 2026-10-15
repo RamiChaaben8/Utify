@@ -14,6 +14,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/guest_session_provider.dart';
 import '../../providers/search_history_provider.dart';
 import '../../providers/youtube_provider.dart';
+import '../../widgets/artist_link.dart';
 import '../theme/desktop_theme.dart';
 import '../../widgets/listen_party_controls.dart';
 
@@ -737,12 +738,17 @@ class _SuggestionTileState extends State<_SuggestionTile> {
                           fontWeight: FontWeight.w500),
                     ),
                     SizedBox(height: 2),
-                    Text(
-                      song.channelName,
+                    ArtistNames(
+                      refs: song.artistRefs,
+                      fallbackName: song.channelName,
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style:
                           TextStyle(color: theme.textSecondary, fontSize: 11),
+                      hoverStyle: TextStyle(
+                          color: theme.textPrimary,
+                          fontSize: 11,
+                          decoration: TextDecoration.underline,
+                          decorationColor: theme.textPrimary),
                     ),
                   ],
                 ),

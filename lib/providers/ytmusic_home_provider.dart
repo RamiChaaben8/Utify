@@ -20,6 +20,126 @@ final ytMusicServiceProvider = Provider<YtMusicService>((ref) {
   return YtMusicService.instance;
 });
 
+/// Full artist page (header, top songs, albums, singles, related artists),
+/// keyed by the artist's browse id. Shared by desktop and mobile.
+final artistProvider =
+    FutureProvider.autoDispose.family<YtArtistData, String>((ref, browseId) {
+  return ref.watch(ytMusicServiceProvider).getArtist(browseId);
+});
+
+/// Mixed YouTube Music search results (songs + artists + albums) for a query.
+final ytSearchAllProvider =
+    FutureProvider.autoDispose.family<YtSearchResults, String>((ref, query) {
+  if (query.trim().isEmpty) return Future.value(const YtSearchResults());
+  return ref.watch(ytMusicServiceProvider).searchAll(query);
+});
+
+/// Normalized artist names that are never real artists — resolving them would
+/// link somewhere arbitrary, so we bail out early.
+const Set<String> _nonArtistNames = {
+  'variousartists',
+  'various',
+  'unknown',
+  'unknownartist',
+  'youtube',
+  'topic',
+  'va',
+};
+
+/// Strips the noise YouTube adds to uploader channel names, e.g. the
+/// "- Topic" suffix on auto-generated music channels.
+String _cleanArtistQuery(String raw) {
+  var s = raw.trim();
+  s = s.replaceAll(RegExp(r'\s*[-–—]\s*topic\s*$', caseSensitive: false), '');
+  return s.trim();
+}
+
+/// Case/punctuation-insensitive form used to compare names.
+String _normArtist(String value) =>
+    value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+/// Splits on the unambiguous collaboration markers only. `,`, `&` and `and`
+/// are deliberately excluded — they occur inside real artist names.
+List<String> _splitCollab(String value) => value
+    .split(RegExp(r'\s+(?:feat\.?|ft\.?|featuring)\s+', caseSensitive: false))
+    .map((p) => p.trim())
+    .where((p) => p.isNotEmpty)
+    .toList();
+
+/// Resolves an artist *name* to a YouTube Music browse id.
+///
+/// Most playback rows only carry the artist's display name (`Song.channelName`),
+/// not a browse id, so tapping a name needs a lookup. The rules, in order:
+///
+/// 1. an exact (normalized) match to the whole name wins — so
+///    "Simon & Garfunkel" / "Florence and the Machine" stay intact;
+/// 2. otherwise the returned artist whose name appears earliest in the query
+///    wins, which picks the primary artist of a collaboration without ever
+///    splitting the string;
+/// 3. as a last resort, split on "feat."/"ft."/"featuring" and retry the first
+///    segment.
+///
+/// The underlying search is cached by the service, so repeat lookups are
+/// instant.
+final artistIdByNameProvider =
+    FutureProvider.autoDispose.family<String?, String>((ref, name) async {
+  final query = _cleanArtistQuery(name);
+  if (query.isEmpty) return null;
+  if (_nonArtistNames.contains(_normArtist(query))) return null;
+
+  final service = ref.watch(ytMusicServiceProvider);
+  final results = await service.searchAll(query);
+  final candidates = [
+    for (final a in results.artists)
+      if (a.browseId.isNotEmpty && a.name.trim().isNotEmpty) a,
+  ];
+  if (candidates.isEmpty) return null;
+
+  final q = _normArtist(query);
+
+  // 1. Whole-name exact match.
+  for (final a in candidates) {
+    if (_normArtist(a.name) == q) return a.browseId;
+  }
+
+  // 2. Earliest whole-name occurrence inside the query → primary artist.
+  int? bestPos;
+  int bestLen = 0;
+  String? bestId;
+  for (final a in candidates) {
+    final an = _normArtist(a.name);
+    if (an.isEmpty) continue;
+    final pos = q.indexOf(an);
+    if (pos < 0) continue;
+    if (bestPos == null ||
+        pos < bestPos ||
+        (pos == bestPos && an.length > bestLen)) {
+      bestPos = pos;
+      bestLen = an.length;
+      bestId = a.browseId;
+    }
+  }
+  if (bestId != null) return bestId;
+
+  // 3. Split on unambiguous collaboration markers and retry the first part.
+  final parts = _splitCollab(query);
+  if (parts.length > 1 && _normArtist(parts.first) != q) {
+    final retry = await service.searchAll(parts.first);
+    final normFirst = _normArtist(parts.first);
+    for (final a in retry.artists) {
+      if (a.browseId.isNotEmpty && _normArtist(a.name) == normFirst) {
+        return a.browseId;
+      }
+    }
+    for (final a in retry.artists) {
+      if (a.browseId.isNotEmpty) return a.browseId;
+    }
+  }
+
+  // 4. Last resort: the first artist result (previous behaviour).
+  return candidates.first.browseId;
+});
+
 // ---------------------------------------------------------------------------
 // HomeMood enum
 // ---------------------------------------------------------------------------

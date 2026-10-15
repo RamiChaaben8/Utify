@@ -22,6 +22,7 @@ import '../services/artwork_cache_manager.dart';
 import '../providers/player_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../desktop/theme/desktop_theme.dart';
+import 'artist_link.dart';
 import 'device_picker.dart';
 
 class MiniPlayer extends ConsumerWidget {
@@ -101,28 +102,42 @@ class MiniPlayer extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Title • Channel
-                        RichText(
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: song.title,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: theme.text,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
                                 ),
                               ),
-                              TextSpan(
-                                text: ' • ${song.channelName}',
+                            ),
+                            Text(
+                              ' • ',
+                              style:
+                                  TextStyle(color: theme.subtext, fontSize: 12),
+                            ),
+                            Flexible(
+                              child: ArtistNames(
+                                refs: song.artistRefs,
+                                fallbackName: song.channelName,
+                                enabled: !song.isLocal,
+                                maxLines: 1,
                                 style: TextStyle(
-                                  color: theme.subtext,
+                                    color: theme.subtext, fontSize: 12),
+                                hoverStyle: TextStyle(
+                                  color: theme.text,
                                   fontSize: 12,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: theme.text,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                         if (nextSong != null) ...[
                           const SizedBox(height: 2),

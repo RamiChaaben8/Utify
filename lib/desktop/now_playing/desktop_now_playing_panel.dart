@@ -28,6 +28,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/lyrics_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../services/youtube_service.dart';
+import '../../widgets/artist_link.dart';
 import '../../widgets/video_preview_widget.dart';
 import '../theme/desktop_theme.dart';
 
@@ -1035,13 +1036,25 @@ class _VideoCard extends StatelessWidget {
                       ),
                     ),
                     SizedBox(height: 3),
-                    Text(
-                      song.channelName,
+                    ArtistNames(
+                      refs: song.artistRefs,
+                      fallbackName: song.channelName,
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: context.appTheme.subtext,
                         fontSize: 12,
+                        shadows: [
+                          Shadow(
+                              blurRadius: 8,
+                              color:
+                                  context.appTheme.main.withValues(alpha: 0.9))
+                        ],
+                      ),
+                      hoverStyle: TextStyle(
+                        color: context.appTheme.lyricsActiveLineColor,
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                        decorationColor: context.appTheme.lyricsActiveLineColor,
                         shadows: [
                           Shadow(
                               blurRadius: 8,

@@ -21,6 +21,7 @@ import '../models/song.dart';
 import '../models/playlist.dart';
 import '../providers/download_provider.dart';
 import 'app_thumbnail.dart';
+import 'artist_link.dart';
 import 'song_context_menu.dart';
 
 class SongTile extends ConsumerStatefulWidget {
@@ -122,11 +123,28 @@ class _SongTileState extends ConsumerState<SongTile> {
             fontSize: 14,
           ),
         ),
-        subtitle: Text(
-          '${song.channelName} • ${_formatDuration(song.duration)}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: theme.subtext, fontSize: 12),
+        subtitle: Row(
+          children: [
+            Flexible(
+              child: ArtistNames(
+                refs: song.artistRefs,
+                fallbackName: song.channelName,
+                enabled: !song.isLocal,
+                maxLines: 1,
+                style: TextStyle(color: theme.subtext, fontSize: 12),
+                hoverStyle: TextStyle(
+                  color: theme.text,
+                  fontSize: 12,
+                  decoration: TextDecoration.underline,
+                  decorationColor: theme.text,
+                ),
+              ),
+            ),
+            Text(
+              ' • ${_formatDuration(song.duration)}',
+              style: TextStyle(color: theme.subtext, fontSize: 12),
+            ),
+          ],
         ),
         trailing: trailingWidget,
       ),

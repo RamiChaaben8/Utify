@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/ytmusic_models.dart';
 import '../../providers/player_provider.dart';
 import '../../services/ytmusic_service.dart';
+import '../../widgets/artist_link.dart';
+import '../shell/desktop_navigation.dart';
 import '../theme/desktop_theme.dart';
 
 // ---------------------------------------------------------------------------
@@ -119,13 +121,48 @@ class _AlbumBody extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        [
-                          if (data.artist.isNotEmpty) data.artist,
-                          if (data.year.isNotEmpty) data.year,
-                          '${data.tracks.length} song${data.tracks.length == 1 ? '' : 's'}',
-                        ].join(' • '),
-                        style: TextStyle(color: theme.subtext, fontSize: 13),
+                      Row(
+                        children: [
+                          if (data.artist.isNotEmpty)
+                            Flexible(
+                              child: data.artistBrowseId != null
+                                  ? MouseRegion(
+                                      cursor: SystemMouseCursors.click,
+                                      child: GestureDetector(
+                                        onTap: () => ref
+                                            .read(desktopYtArtistRequestProvider
+                                                .notifier)
+                                            .state = data.artistBrowseId,
+                                        child: Text(
+                                          data.artist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: theme.text,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      data.artist,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                          color: theme.subtext, fontSize: 13),
+                                    ),
+                            ),
+                          if (data.artist.isNotEmpty) const SizedBox(width: 6),
+                          Text(
+                            [
+                              if (data.year.isNotEmpty) data.year,
+                              '${data.tracks.length} song${data.tracks.length == 1 ? '' : 's'}',
+                            ].join(' • '),
+                            style:
+                                TextStyle(color: theme.subtext, fontSize: 13),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                       if (data.tracks.isNotEmpty)
@@ -285,12 +322,17 @@ class _TrackRowState extends State<_TrackRow> {
                       ),
                     ),
                     if (widget.song.artist.isNotEmpty)
-                      Text(
-                        widget.song.artist,
+                      ArtistNames(
+                        refs: widget.song.artistRefs,
+                        fallbackName: widget.song.artist,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: theme.subtext, fontSize: 11),
+                        style:
+                            TextStyle(color: theme.subtext, fontSize: 11),
+                        hoverStyle: TextStyle(
+                            color: theme.text,
+                            fontSize: 11,
+                            decoration: TextDecoration.underline,
+                            decorationColor: theme.text),
                       ),
                   ],
                 ),
